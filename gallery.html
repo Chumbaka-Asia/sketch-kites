@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sketch Kites | Kite gallery</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --sky: #10243a;
+    --deep: #0a1728;
+    --panel: #18344b;
+    --line: rgba(223, 239, 228, .18);
+    --paper: #f8f0df;
+    --muted: #b5c9ce;
+    --sun: #f4b66b;
+    --mint: #a8d8ba;
+    --blue: #9ccde5;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    min-height: 100vh;
+    margin: 0;
+    color: var(--paper);
+    background: radial-gradient(ellipse 45% 25% at 88% 4%, rgba(244,182,107,.2), transparent 75%),
+                radial-gradient(ellipse 55% 32% at 0% 35%, rgba(80,150,160,.17), transparent 80%),
+                linear-gradient(160deg, var(--sky), var(--deep) 75%);
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: .35;
+    background-image: radial-gradient(circle, rgba(248,240,223,.55) 1px, transparent 1.5px);
+    background-size: 73px 73px;
+    background-position: 11px 19px;
+  }
+  button, input, select { font: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+  [hidden] { display: none !important; }
+  .page { width: min(100% - 52px, 1420px); margin: 0 auto; }
+  .masthead { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 84px; border-bottom: 1px solid var(--line); }
+  .wordmark { display: flex; align-items: center; gap: 13px; font-size: 13px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+  .mark { width: 23px; height: 23px; transform: rotate(45deg); background: var(--sun); box-shadow: 0 0 0 5px rgba(244,182,107,.12); }
+  .masthead-note, .eyebrow, .micro, .file-name, .card-id, .card-date, .card-number, .field-label, .count, .footer { font-family: Consolas, "Courier New", monospace; }
+  .masthead-note { color: var(--muted); font-size: 11px; letter-spacing: .11em; text-transform: uppercase; }
+  .hero { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(300px, .7fr); align-items: center; gap: 66px; padding: 76px 0 80px; }
+  .eyebrow { margin: 0 0 21px; color: var(--mint); font-size: 12px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; }
+  h1 { max-width: 800px; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(59px, 7.6vw, 112px); line-height: .91; font-weight: 400; letter-spacing: -.062em; }
+  h1 em { color: var(--sun); font-weight: 400; }
+  .hero-copy { max-width: 560px; margin: 27px 0 0; color: var(--muted); font-size: 16px; line-height: 1.65; }
+  .chooser { position: relative; min-height: 270px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 33px; border: 1.5px dashed rgba(168,216,186,.65); border-radius: 4px 40px 4px 40px; background: linear-gradient(155deg, rgba(168,216,186,.11), rgba(244,182,107,.07)); cursor: pointer; transition: background .2s, border-color .2s, transform .2s; }
+  .chooser:hover, .chooser.drag-over { background: rgba(168,216,186,.16); border-color: var(--mint); transform: translateY(-3px); }
+  .chooser::after { content: ""; position: absolute; right: 24px; top: 25px; width: 33px; height: 33px; border-top: 1px solid var(--mint); border-right: 1px solid var(--mint); transform: rotate(45deg); opacity: .7; }
+  .chooser-icon { margin-bottom: 18px; color: var(--sun); font-family: Georgia, serif; font-size: 42px; line-height: 1; }
+  .chooser-title { margin: 0 0 6px; font-family: Georgia, serif; font-size: 27px; }
+  .chooser-copy { margin: 0 0 20px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+  .choose-button { display: inline-block; padding: 11px 18px; border-radius: 4px; background: var(--sun); color: #172334; font-size: 13px; font-weight: 800; }
+  .chooser:hover .choose-button { background: #ffd09a; }
+  .micro { margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+  .status { margin: 0 0 30px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255,255,255,.04); font-size: 13px; line-height: 1.5; }
+  .status.error { border-color: rgba(245,150,125,.65); color: #ffd8c9; background: rgba(245,150,125,.1); }
+  .archive-top { display: flex; align-items: end; justify-content: space-between; gap: 22px; padding: 21px 0 23px; border-top: 1px solid var(--line); }
+  .section-label { margin: 0 0 7px; color: var(--mint); font-family: Consolas, monospace; font-size: 11px; letter-spacing: .15em; text-transform: uppercase; }
+  .archive-title { margin: 0; font-family: Georgia, serif; font-size: 39px; font-weight: 400; letter-spacing: -.04em; }
+  .file-name { margin: 8px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .totals { color: var(--sun); font-family: Georgia, serif; font-size: 28px; text-align: right; white-space: nowrap; }
+  .totals span { display: block; color: var(--muted); font-family: Consolas, monospace; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; }
+  .toolbar { display: flex; align-items: end; flex-wrap: wrap; gap: 13px; margin-bottom: 25px; }
+  .field { display: flex; flex-direction: column; gap: 7px; min-width: 170px; }
+  .field.search { flex: 1 1 245px; max-width: 385px; }
+  .field-label { color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+  .field input, .field select { width: 100%; min-height: 43px; padding: 0 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); color: var(--paper); }
+  .field input::placeholder { color: #b6c9c9; }
+  .count { margin: 0 0 11px auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .export-button { min-height: 43px; padding: 0 16px; border: 1px solid var(--sun); border-radius: 5px; color: #172334; background: var(--sun); font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .export-button:hover { background: #ffd09a; }
+  .export-button:disabled { cursor: default; opacity: .5; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+  .card { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 6px 26px 6px 6px; background: rgba(24,52,75,.93); box-shadow: 0 13px 32px rgba(0,7,18,.16); transition: transform .2s, border-color .2s, box-shadow .2s; }
+  .card:hover { transform: translateY(-4px); border-color: rgba(168,216,186,.65); box-shadow: 0 22px 38px rgba(0,7,18,.32); }
+  .art { position: relative; display: grid; place-items: center; aspect-ratio: 1 / 1; padding: 20px; overflow: hidden; background: radial-gradient(circle at 50% 28%, #2f647e, #17334b 72%); }
+  .art::after { content: ""; position: absolute; inset: auto 0 0; height: 28%; background: linear-gradient(transparent, rgba(8,24,40,.25)); pointer-events: none; }
+  .art img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; filter: drop-shadow(0 12px 11px rgba(0,13,30,.32)); }
+  .card-number { position: absolute; z-index: 1; top: 12px; left: 12px; padding: 5px 8px; border-radius: 3px; color: var(--paper); background: rgba(8,25,41,.74); font-size: 11px; }
+  .card-body { padding: 18px 18px 19px; border-top: 1px solid var(--line); }
+  .card-name { margin: 0 0 8px; font-family: Georgia, serif; font-size: 25px; font-weight: 400; line-height: 1.15; overflow-wrap: anywhere; }
+  .kind { display: inline-block; margin-bottom: 15px; padding: 4px 9px; border: 1px solid rgba(168,216,186,.4); border-radius: 99px; color: var(--mint); font-size: 11px; }
+  .card-id, .card-date { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+  .card-id { color: #d7e5df; }
+  .empty { padding: 68px 20px; border: 1px dashed var(--line); color: var(--muted); text-align: center; }
+  .empty strong { display: block; margin-bottom: 8px; color: var(--paper); font-family: Georgia, serif; font-size: 26px; font-weight: 400; }
+  .footer { margin: 62px 0 0; padding: 21px 0 30px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.6; }
+  @media (max-width: 800px) {
+    .hero { grid-template-columns: 1fr; gap: 34px; padding: 50px 0 58px; }
+    .chooser { min-height: 220px; }
+  }
+  @media (max-width: 530px) {
+    .page { width: min(100% - 32px, 1420px); }
+    .masthead-note { display: none; }
+    .archive-title { font-size: 32px; }
+    .totals { font-size: 22px; }
+    .field, .field.search { flex: 1 1 100%; max-width: none; }
+    .count { width: 100%; margin: 0; }
+    .export-button { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .chooser, .card { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="masthead">
+    <div class="wordmark"><span class="mark" aria-hidden="true"></span>Sketch Kites</div>
+    <div class="masthead-note">The sky archive</div>
+  </header>
+
+  <section class="hero" aria-labelledby="page-title">
+    <div>
+      <p class="eyebrow">A collection of things made by hand</p>
+      <h1 id="page-title">Every kite has <em>a story.</em></h1>
+      <p class="hero-copy">Open a Sketch Kites export to see every drawing that crossed the sky, along with its name, ID, and launch time.</p>
+    </div>
+    <div class="chooser" id="drop-zone" tabindex="0" role="button" aria-label="Choose or drop a Sketch Kites JSON export">
+      <div class="chooser-icon" aria-hidden="true">◇</div>
+      <p class="chooser-title">Open an export</p>
+      <p class="chooser-copy">Drop a JSON file here, or choose one from your device.</p>
+      <span class="choose-button">Choose JSON file</span>
+      <p class="micro">Viewed only in this browser. Nothing is uploaded.</p>
+    </div>
+    <input id="file-input" type="file" accept=".json,application/json" hidden>
+  </section>
+
+  <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+  <section id="archive" aria-labelledby="archive-title" hidden>
+    <div class="archive-top">
+      <div>
+        <p class="section-label">Collected works</p>
+        <h2 class="archive-title" id="archive-title">The gallery</h2>
+        <p id="file-name" class="file-name"></p>
+      </div>
+      <div id="totals" class="totals"></div>
+    </div>
+    <div class="toolbar">
+      <label class="field search"><span class="field-label">Find a kite</span><input id="search" type="search" placeholder="Search name or ID" autocomplete="off"></label>
+      <label class="field"><span class="field-label">Order</span><select id="sort-order"><option value="original">Export order</option><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+      <p id="result-count" class="count" aria-live="polite"></p>
+      <button id="export-button" class="export-button" type="button" disabled>Download HTML gallery</button>
+    </div>
+    <div id="gallery" class="gallery"></div>
+    <div id="empty" class="empty" hidden><strong>No kites found.</strong>Try another search.</div>
+  </section>
+
+  <footer class="footer">Sketch Kites · A local view of your saved sky</footer>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const fileInput = document.getElementById('file-input');
+  const dropZone = document.getElementById('drop-zone');
+  const status = document.getElementById('status');
+  const archive = document.getElementById('archive');
+  const gallery = document.getElementById('gallery');
+  const empty = document.getElementById('empty');
+  const search = document.getElementById('search');
+  const sortOrder = document.getElementById('sort-order');
+  const resultCount = document.getElementById('result-count');
+  const exportButton = document.getElementById('export-button');
+  const pageTemplate = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const dateFormatter = new Intl.DateTimeFormat(undefined, {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+  let kites = [];
+  let loadNumber = 0;
+  let sourceText = null;
+  let sourceName = '';
+
+  function showStatus(message, error = false) {
+    status.textContent = message;
+    status.classList.toggle('error', error);
+    status.hidden = !message;
+  }
+
+  function displayDate(value) {
+    const time = Number(value);
+    return Number.isFinite(time) && time > 0 && Number.isFinite(new Date(time).getTime())
+      ? dateFormatter.format(new Date(time)) : 'Unknown date';
+  }
+
+  function makeCard(kite) {
+    const card = document.createElement('article');
+    card.className = 'card';
+    const art = document.createElement('div');
+    art.className = 'art';
+    const number = document.createElement('span');
+    number.className = 'card-number';
+    number.textContent = '#' + String(kite.index + 1).padStart(3, '0');
+    art.appendChild(number);
+    const image = document.createElement('img');
+    image.src = kite.dataURL;
+    image.alt = kite.name ? 'Kite drawing: ' + kite.name : 'Kite drawing ' + (kite.index + 1);
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    art.appendChild(image);
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    const name = document.createElement('h3');
+    name.className = 'card-name';
+    name.textContent = kite.name || 'Unnamed kite';
+    const kind = document.createElement('span');
+    kind.className = 'kind';
+    kind.textContent = 'Kite';
+    body.append(name, kind);
+    const id = document.createElement('p');
+    id.className = 'card-id';
+    id.textContent = 'ID: ' + kite.id;
+    const date = document.createElement('p');
+    date.className = 'card-date';
+    date.textContent = 'Launched: ' + displayDate(kite.createdAt);
+    body.append(id, date);
+    card.append(art, body);
+    return card;
+  }
+
+  function render() {
+    const query = search.value.trim().toLocaleLowerCase();
+    const visible = kites.filter(kite =>
+      !query || kite.name.toLocaleLowerCase().includes(query) || kite.id.toLocaleLowerCase().includes(query)
+    );
+    if (sortOrder.value !== 'original') {
+      const direction = sortOrder.value === 'newest' ? -1 : 1;
+      visible.sort((a, b) => direction * ((Number(a.createdAt) || 0) - (Number(b.createdAt) || 0)) || a.index - b.index);
+    }
+    const fragment = document.createDocumentFragment();
+    visible.forEach(kite => fragment.appendChild(makeCard(kite)));
+    gallery.replaceChildren(fragment);
+    empty.hidden = visible.length !== 0;
+    resultCount.textContent = visible.length + ' of ' + kites.length + ' shown';
+  }
+
+  function downloadGallery() {
+    if (sourceText === null) return;
+    try {
+      const position = pageTemplate.lastIndexOf('</body>');
+      if (position < 0) throw new Error('Could not prepare the gallery page.');
+      const payload = '<scr' + 'ipt id="embedded-export" type="application/json" data-file-name="' +
+        encodeURIComponent(sourceName) + '">' + sourceText.replace(/</g, '\\u003c') + '</scr' + 'ipt>\n';
+      const html = pageTemplate.slice(0, position) + payload + pageTemplate.slice(position);
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const stem = sourceName.replace(/\.json$/i, '').replace(/[\\/:*?"<>|]/g, '-').slice(0, 120) || 'sketch-kites-export';
+      link.href = url;
+      link.download = stem + '-gallery.html';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      showStatus('Could not download the gallery: ' + error.message, true);
+    }
+  }
+
+  async function loadFile(file) {
+    if (!file) return;
+    const currentLoad = ++loadNumber;
+    showStatus('Opening ' + file.name + '…');
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) throw new Error('Expected a JSON array of kites.');
+      const valid = parsed.flatMap((record, index) => {
+        if (!record || typeof record !== 'object' || typeof record.id !== 'string' || !record.id.trim() ||
+            typeof record.dataURL !== 'string' ||
+            !/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(record.dataURL)) return [];
+        return [{
+          index, id: record.id, name: typeof record.name === 'string' ? record.name.trim() : '',
+          createdAt: record.createdAt, dataURL: record.dataURL
+        }];
+      });
+      if (parsed.length && !valid.length) throw new Error('No kite records with embedded images were found.');
+      if (currentLoad !== loadNumber) return;
+      kites = valid;
+      search.value = '';
+      sortOrder.value = 'original';
+      document.getElementById('file-name').textContent = file.name;
+      document.getElementById('totals').textContent = kites.length.toLocaleString();
+      const caption = document.createElement('span');
+      caption.textContent = kites.length === 1 ? 'kite in the sky' : 'kites in the sky';
+      document.getElementById('totals').appendChild(caption);
+      archive.hidden = false;
+      render();
+      sourceText = text;
+      sourceName = file.name;
+      exportButton.disabled = false;
+      empty.querySelector('strong').textContent = kites.length ? 'No kites found.' : 'This export is empty.';
+      const skipped = parsed.length - kites.length;
+      showStatus(skipped ? 'Loaded ' + kites.length + ' kites; skipped ' + skipped + ' records missing a valid ID or embedded image.' : '');
+    } catch (error) {
+      if (currentLoad === loadNumber) showStatus('Could not open “' + file.name + '”: ' + error.message, true);
+    }
+  }
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInput.click(); }
+  });
+  fileInput.addEventListener('change', () => {
+    loadFile(fileInput.files[0]);
+    fileInput.value = '';
+  });
+  let dragDepth = 0;
+  document.addEventListener('dragenter', event => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    event.preventDefault();
+    dragDepth++;
+    dropZone.classList.add('drag-over');
+  });
+  document.addEventListener('dragover', event => {
+    if (event.dataTransfer.types.includes('Files')) event.preventDefault();
+  });
+  document.addEventListener('dragleave', event => {
+    if (!event.dataTransfer.types.includes('Files')) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) dropZone.classList.remove('drag-over');
+  });
+  document.addEventListener('drop', event => {
+    if (!event.dataTransfer.files.length) return;
+    event.preventDefault();
+    dragDepth = 0;
+    dropZone.classList.remove('drag-over');
+    loadFile(event.dataTransfer.files[0]);
+  });
+  search.addEventListener('input', render);
+  sortOrder.addEventListener('change', render);
+  exportButton.addEventListener('click', downloadGallery);
+  document.addEventListener('DOMContentLoaded', () => {
+    const embedded = document.getElementById('embedded-export');
+    if (embedded) loadFile({
+      name: decodeURIComponent(embedded.dataset.fileName || 'sketch-kites-export.json'),
+      text: async () => embedded.textContent
+    });
+  });
+})();
+</script>
+</body>
+</html>

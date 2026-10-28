@@ -1,0 +1,2352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sketch Kites — Display</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #1a6fbf; }
+  #paper-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; }
+  #vista-bg, #vista-fg { position: fixed; inset: 0; width: 100vw; height: 100vh; overflow: hidden; pointer-events: none; }
+  #vista-fg { z-index: 2; }
+  canvas { display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+  #tooltip {
+    position: fixed;
+    display: none;
+    background: #fff;
+    border: 3px solid #000;
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-family: 'Comic Sans MS', 'Chalkboard SE', cursive;
+    font-size: 15px;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 10;
+    box-shadow: 3px 3px 0 #000;
+    white-space: nowrap;
+  }
+  #tooltip::after {
+    content: '';
+    position: absolute;
+    bottom: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 7px solid transparent;
+    border-top-color: #000;
+  }
+  #tooltip::before {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #fff;
+    z-index: 1;
+  }
+
+  /* Recent kites toggle */
+  #recentBtn {
+    position: fixed;
+    bottom: 22px;
+    left: 20px;
+    z-index: 100;
+    background: transparent;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: .7;
+    transition: opacity .2s, transform .2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #recentBtn:hover { opacity: 1; transform: scale(1.12); }
+  #recentBtn:active { transform: scale(.94); }
+
+  /* Settings toggle */
+  #settingsBtn {
+    position: fixed;
+    bottom: 22px;
+    left: 58px;
+    z-index: 100;
+    background: transparent;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 18px;
+    cursor: pointer;
+    opacity: .7;
+    transition: opacity .2s, transform .2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+  }
+  #settingsBtn:hover { opacity: 1; transform: scale(1.12); }
+  #settingsBtn:active { transform: scale(.94); }
+  #settingsBtn.has-alert::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #e8543a;
+    box-shadow: 0 0 4px #e8543a;
+    pointer-events: none;
+  }
+
+  /* ── Panel system ─────────────────────────────────────────────────────────────
+     One type family, one scale, one set of tokens for the settings panel, the
+     recent-kites panel and the confirm dialog. Nothing below 12px. */
+  :root {
+    --font-ui: 'Montserrat', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --panel-bg: #07091a;
+    --surface-raised: #161b3b; /* menus that float above the panel */
+    --text: #eef3ff;
+    --text-dim: #b4c3df;
+    --gold: #e0bf63;
+    --line: rgba(224, 191, 99, .22);
+    --line-faint: rgba(224, 191, 99, .12);
+    --field-bg: rgba(255, 255, 255, .07);
+    --danger: #f4907e;
+    --danger-line: rgba(244, 144, 126, .45);
+    --focus-ring: 0 0 0 2px var(--panel-bg), 0 0 0 4px var(--gold);
+  }
+  body, button, select, input { font-family: var(--font-ui); }
+
+  #settingsPanel, #recentPanel, #confirmBox {
+    background: var(--panel-bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    box-shadow: 0 16px 56px rgba(0, 0, 0, .8), 0 2px 12px rgba(0, 0, 0, .5);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  /* Settings panel */
+  #settingsPanel {
+    position: fixed;
+    bottom: 60px;
+    left: 54px;
+    z-index: 99;
+    width: 344px;
+    max-height: calc(100vh - 84px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+    display: none;
+  }
+  #settingsPanel.show { display: block; }
+
+  #settingsPanel h3, #recentPanel h3 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+    padding: 14px 18px 12px;
+    border-bottom: 1px solid var(--line-faint);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  #settingsPanel h3 {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--panel-bg);
+  }
+
+  .settings-section {
+    padding: 14px 18px 16px;
+    border-bottom: 1px solid var(--line-faint);
+  }
+  .settings-section:last-child { border-bottom: none; }
+  .settings-section h4 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold);
+    margin: 0 0 12px;
+  }
+
+  /* Collapsible sections: the summary looks like an h4 with a chevron */
+  details.settings-section > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    list-style: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold);
+    border-radius: 4px;
+  }
+  details.settings-section > summary::-webkit-details-marker { display: none; }
+  details.settings-section > summary::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    margin: -3px 4px 0 0;
+    transition: transform .15s;
+  }
+  details.settings-section[open] > summary { margin-bottom: 12px; }
+  details.settings-section[open] > summary::after { transform: rotate(225deg); margin-top: 3px; }
+  details.settings-section > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+  /* Slider rows: label left, value right, slider underneath */
+  .ctrl-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .ctrl-label { font-size: 13px; font-weight: 500; color: var(--text-dim); }
+  .ctrl-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold);
+    text-align: right;
+    min-width: 48px;
+    font-variant-numeric: tabular-nums;
+  }
+  .ctrl-slider {
+    grid-column: 1 / -1;
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 24px;
+    margin: 2px 0 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .ctrl-slider::-webkit-slider-runnable-track {
+    height: 4px;
+    background: rgba(255, 255, 255, .22);
+    border-radius: 2px;
+  }
+  .ctrl-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    margin-top: -6px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 2px solid var(--panel-bg);
+    box-shadow: 0 0 0 1px var(--gold);
+    transition: transform .1s;
+  }
+  .ctrl-slider::-moz-range-track {
+    height: 4px;
+    background: rgba(255, 255, 255, .22);
+    border-radius: 2px;
+  }
+  .ctrl-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 2px solid var(--panel-bg);
+    box-shadow: 0 0 0 1px var(--gold);
+  }
+  .ctrl-slider:hover::-webkit-slider-thumb { transform: scale(1.15); }
+  .ctrl-slider:focus { outline: none; }
+  .ctrl-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--gold), 0 0 0 4px rgba(224, 191, 99, .45); }
+  .ctrl-slider:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 1px var(--gold), 0 0 0 4px rgba(224, 191, 99, .45); }
+
+  /* Buttons: one look for every secondary action */
+  .ctrl-reset, .hub-reconnect-btn, .recent-actions button, .confirm-actions button {
+    min-height: 32px;
+    padding: 6px 14px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .ctrl-reset:hover, .hub-reconnect-btn:hover, .recent-actions button:hover, .confirm-actions button:hover {
+    background: rgba(224, 191, 99, .12);
+    border-color: var(--gold);
+  }
+  .ctrl-reset { display: block; width: 100%; margin-top: 6px; }
+  #resetCacheBtn, #clearAllBtn {
+    display: block;
+    width: 100%;
+    min-height: 32px;
+    padding: 6px 14px;
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger-line);
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  #clearAllBtn { margin-top: 8px; }
+  #resetCacheBtn:hover, #clearAllBtn:hover {
+    background: rgba(244, 144, 126, .12);
+    border-color: var(--danger);
+  }
+  :is(.ctrl-reset, .hub-reconnect-btn, .recent-actions button, .confirm-actions button,
+      #resetCacheBtn, #clearAllBtn, .kite-remove, .ctrl-select, .ctrl-input,
+      #settingsBtn, #recentBtn):focus-visible,
+  .logo-switch input:focus-visible + .logo-slider {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* Toggle rows, selects, inputs */
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 36px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--line-faint);
+  }
+  .logo-row:last-child { border-bottom: none; }
+  .logo-label { flex: 1; font-size: 13px; font-weight: 500; color: var(--text); }
+  .logo-thumb {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    border-radius: 3px;
+    background: var(--field-bg);
+    border: 1px solid var(--line-faint);
+    flex-shrink: 0;
+  }
+  .ctrl-select, .ctrl-input {
+    min-height: 32px;
+    padding: 5px 10px;
+    background: var(--field-bg);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color-scheme: dark;
+  }
+  .ctrl-select { cursor: pointer; }
+  /* Dropdown list. --field-bg is translucent, which the native list renders as
+     white, so options get an opaque surface one step lighter than the panel
+     (otherwise the list melts into it). The current choice is marked in gold. */
+  .ctrl-select option { background: var(--surface-raised); color: var(--text); }
+  .ctrl-select option:checked {
+    background: linear-gradient(rgba(224, 191, 99, .22), rgba(224, 191, 99, .22)) var(--surface-raised);
+    color: var(--gold);
+  }
+  /* Chromium's customisable select: full control over the open list, including
+     the hover row (the native one is OS blue). Other browsers keep the rules above. */
+  @supports (appearance: base-select) {
+    .ctrl-select, .ctrl-select::picker(select) { appearance: base-select; }
+    /* Same chevron as the collapsible section headers */
+    .ctrl-select::picker-icon {
+      content: '';
+      width: 6px;
+      height: 6px;
+      margin: -3px 2px 0 6px;
+      border-right: 2px solid var(--gold);
+      border-bottom: 2px solid var(--gold);
+      rotate: 45deg;
+      transition: rotate .15s, margin .15s;
+    }
+    .ctrl-select:open::picker-icon { rotate: 225deg; margin-top: 3px; }
+    .ctrl-select::picker(select) {
+      min-width: anchor-size(width);
+      margin-top: 4px;
+      padding: 4px;
+      background: var(--surface-raised);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, .55);
+    }
+    .ctrl-select option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .ctrl-select option:hover,
+    .ctrl-select option:focus-visible { background: rgba(224, 191, 99, .16); color: var(--text); outline: none; }
+    .ctrl-select option:checked { background: transparent; color: var(--gold); font-weight: 600; }
+    .ctrl-select option:checked:hover { background: rgba(224, 191, 99, .16); }
+    .ctrl-select option::checkmark { content: '✓'; order: 1; margin-left: auto; color: var(--gold); }
+  }
+  .ctrl-input { flex: 1; min-width: 0; }
+  .logo-row > .ctrl-input { flex: 2; }
+  .ctrl-input::placeholder { color: var(--text-dim); opacity: .7; }
+  .ctrl-select:disabled, .logo-switch input:disabled + .logo-slider {
+    opacity: .45;
+    cursor: not-allowed;
+  }
+
+  .logo-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+  .logo-switch input { opacity: 0; width: 0; height: 0; }
+  .logo-slider {
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    background: rgba(255, 255, 255, .14);
+    border: 1px solid rgba(255, 255, 255, .3);
+    border-radius: 22px;
+    transition: background .18s, border-color .18s;
+  }
+  .logo-slider::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    bottom: 2px;
+    width: 14px;
+    height: 14px;
+    background: var(--text-dim);
+    border-radius: 50%;
+    transition: transform .18s, background .18s;
+  }
+  .logo-switch input:checked + .logo-slider {
+    background: rgba(224, 191, 99, .3);
+    border-color: var(--gold);
+  }
+  .logo-switch input:checked + .logo-slider::before {
+    transform: translateX(18px);
+    background: var(--gold);
+  }
+
+  /* Hub status */
+  #hubStatus {
+    display: none;
+    margin: 12px 18px 0;
+    padding: 9px 12px;
+    background: rgba(88, 164, 212, .1);
+    border: 1px solid rgba(88, 164, 212, .35);
+    border-radius: 4px;
+  }
+  .hub-row { display: flex; align-items: center; gap: 10px; }
+  #hubStatus .hub-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #58a4d4;
+    flex-shrink: 0;
+  }
+  #hubStatus.hub-connecting .hub-dot { background: #e0b04f; }
+  #hubStatus.hub-disconnected .hub-dot { background: #f0705a; animation: none; opacity: 1; }
+  #hubStatus .hub-text { flex: 1; font-size: 12px; font-weight: 400; line-height: 1.5; color: var(--text-dim); }
+  .hub-reconnect-btn { min-height: 28px; padding: 3px 12px; font-size: 12px; flex-shrink: 0; }
+  @media (prefers-reduced-motion: no-preference) {
+    #hubStatus .hub-dot { animation: hub-pulse 2.4s ease-in-out infinite; }
+    #hubStatus.hub-connecting .hub-dot { animation-duration: 1.2s; }
+  }
+  @keyframes hub-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
+  }
+
+  /* Recent-kites panel */
+  #recentPanel {
+    position: fixed;
+    bottom: 60px;
+    left: 16px;
+    z-index: 99;
+    width: 280px;
+    padding: 0 0 14px;
+    display: none;
+  }
+  #recentPanel.show { display: block; }
+  #recentCount { font-size: 12px; font-weight: 400; color: var(--text-dim); }
+  #recentList { padding: 4px 18px 0; max-height: 50vh; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .kite-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line-faint);
+  }
+  .kite-row:last-child { border-bottom: none; }
+  .kite-thumb {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    border-radius: 4px;
+    background: var(--field-bg);
+    flex-shrink: 0;
+  }
+  .kite-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .kite-age { margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--text-dim); }
+  .kite-empty { padding: 12px 0; text-align: center; font-size: 13px; color: var(--text-dim); }
+  .kite-remove {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--danger);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .15s, background .15s;
+  }
+  .kite-row:hover .kite-remove, .kite-remove:focus-visible { opacity: 1; }
+  .kite-remove:hover { background: rgba(244, 144, 126, .15); }
+  .recent-actions { display: flex; gap: 8px; margin: 10px 18px 0; }
+  .recent-actions button { flex: 1; }
+
+  /* Confirm dialog */
+  #confirmOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .6);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  #confirmOverlay.show { display: flex; }
+  #confirmBox {
+    width: 90%;
+    max-width: 340px;
+    padding: 24px 24px 20px;
+    text-align: center;
+  }
+  #confirmBox p {
+    margin-bottom: 20px;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--text);
+  }
+  #confirmBox p span { display: block; margin-top: 4px; font-size: 13px; font-weight: 400; color: var(--text-dim); }
+  .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+  .confirm-actions button { min-width: 96px; }
+  #confirmYes { background: #c0392b; border-color: #c0392b; color: #fff; }
+  #confirmYes:hover { background: #d44636; border-color: #d44636; }
+
+  /* Event header and QR label */
+  #eventHeader {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    width: max-content;
+    max-width: min(1200px, 70vw);
+    text-align: center;
+    color: white;
+    font-family: var(--font-ui);
+    pointer-events: none;
+  }
+
+  #eventLogos {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 28px;
+    margin-bottom: 8px;
+  }
+  #eventLogos[hidden], .event-logo[hidden], #eventTitle[hidden], #eventSubtitle[hidden] { display: none; }
+  .event-logo {
+    height: 70px;
+    object-fit: contain;
+  }
+
+  #eventTitle {
+    font-size: clamp(30px, 3.1vw, 48px);
+    font-weight: 700;
+    line-height: 1.12;
+    letter-spacing: -0.012em;
+    text-wrap: balance;
+    margin: 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 3px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  #eventSubtitle {
+    font-size: clamp(16px, 1.55vw, 24px);
+    font-weight: 500;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+    text-wrap: balance;
+    margin: 10px 0 0;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 3px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  #demoChip {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 100;
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffe23c;
+    font: 700 12px/1.4 var(--font-ui);
+    letter-spacing: 0.12em;
+    pointer-events: none;
+  }
+
+  #qrCorner {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    pointer-events: none;
+  }
+
+  #qrCorner img {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+    background: white;
+    padding: 8px;
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  }
+
+  #qrCorner .qrLabel {
+    font-family: var(--font-ui);
+    font-size: clamp(16px, 1.55vw, 24px);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0.01em;
+    color: white;
+    text-align: center;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 3px 12px rgba(0, 0, 0, 0.3);
+  }
+  /* ── End panel system ── */
+</style>
+<script src="scripts/kite-store.js"></script>
+<script src="scripts/qr.js"></script>
+</head>
+
+<header id="eventHeader">
+  <div id="eventLogos" hidden>
+    <img class="event-logo" data-logo="0" src="images/logo01.png" alt="Logo 1" hidden>
+    <img class="event-logo" data-logo="1" src="images/logo02.png" alt="Logo 2" hidden>
+    <img class="event-logo" data-logo="2" src="images/logo03.png" alt="Logo 3" hidden>
+  </div>
+  <h1 id="eventTitle">Welcome to SDYIC Grand Finale 2026</h1>
+  <p id="eventSubtitle">Come fly your wau at our booth!</p>
+</header>
+
+
+<body>
+<svg id="vista-bg" viewBox="0 0 1916 821" xmlns="http://www.w3.org/2000/svg"
+     role="img" aria-label="Illustrated sunny sky above rolling green hills"
+     preserveAspectRatio="xMidYMax slice">
+  <image href="images/sketch-kites-vista-clear-21-9.png" width="1916" height="821"/>
+</svg>
+<svg id="paper-bg" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg"
+     role="img" aria-labelledby="bg-title bg-desc" preserveAspectRatio="none" style="display:none">
+  <title id="bg-title">Sketch Kites sky background</title>
+  <desc id="bg-desc">Layered paper-cut kite-flying scene with clouds, rolling hills, and rooted trees</desc>
+  <defs>
+    <linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#1a8fdf"/>
+      <stop offset="40%"  stop-color="#5fc3f0"/>
+      <stop offset="72%"  stop-color="#ffe085"/>
+      <stop offset="100%" stop-color="#fdb85c"/>
+    </linearGradient>
+    <!-- sh-s: small shadow + paper grain (clouds, far hills) -->
+    <filter id="sh-s" x="-5%" y="-20%" width="115%" height="175%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65 0.38" numOctaves="4" seed="2" result="noise"/>
+      <feColorMatrix type="matrix" in="noise"
+        values="0.14 0.14 0.14 0 0.78  0.14 0.14 0.14 0 0.78  0.14 0.14 0.14 0 0.78  0 0 0 0 1"
+        result="grain"/>
+      <feComposite operator="in" in="grain" in2="SourceAlpha" result="grain-m"/>
+      <feBlend in="SourceGraphic" in2="grain-m" mode="multiply" result="tex"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="24" result="blur"/>
+      <feOffset dx="0" dy="-18" in="blur" result="off"/>
+      <feFlood flood-color="black" flood-opacity="0.80" result="flood"/>
+      <feComposite operator="in" in="flood" in2="off" result="shadow"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="tex"/></feMerge>
+    </filter>
+    <!-- cloudDepth: clean shadow between blue and white paper layers -->
+    <filter id="cloudDepth" x="-10%" y="-30%" width="120%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="18" result="blur"/>
+      <feFlood flood-color="#1a3040" flood-opacity="0.35" result="flood"/>
+      <feComposite operator="in" in="flood" in2="blur" result="shadow"/>
+      <feMerge><feMergeNode in="shadow"/></feMerge>
+    </filter>
+    <!-- Circle templates for cloud unions (no fill — cascaded from <use>) -->
+    <g id="cc-far">
+      <circle cx="-60"  cy="185" r="70"/>
+      <circle cx="80"   cy="150" r="60"/>
+      <circle cx="200"  cy="172" r="75"/>
+      <circle cx="330"  cy="145" r="85"/>
+      <circle cx="470"  cy="168" r="65"/>
+      <circle cx="580"  cy="155" r="72"/>
+      <circle cx="700"  cy="175" r="60"/>
+      <circle cx="820"  cy="148" r="80"/>
+      <circle cx="950"  cy="165" r="58"/>
+      <circle cx="1060" cy="158" r="72"/>
+      <circle cx="1180" cy="170" r="65"/>
+      <circle cx="1300" cy="150" r="85"/>
+      <circle cx="1420" cy="168" r="62"/>
+      <circle cx="1540" cy="155" r="78"/>
+      <circle cx="1660" cy="172" r="65"/>
+      <circle cx="1780" cy="160" r="72"/>
+    </g>
+    <g id="cc-mid">
+      <circle cx="-140" cy="320" r="120"/>
+      <circle cx="20"   cy="270" r="145"/>
+      <circle cx="180"  cy="340" r="125"/>
+      <circle cx="350"  cy="300" r="105"/>
+      <circle cx="510"  cy="325" r="148"/>
+      <circle cx="680"  cy="285" r="112"/>
+      <circle cx="850"  cy="318" r="132"/>
+      <circle cx="1020" cy="275" r="155"/>
+      <circle cx="1180" cy="310" r="108"/>
+      <circle cx="1340" cy="290" r="138"/>
+      <circle cx="1500" cy="322" r="115"/>
+      <circle cx="1650" cy="298" r="145"/>
+      <circle cx="1800" cy="315" r="125"/>
+    </g>
+    <g id="cc-near">
+      <circle cx="-120" cy="470" r="135"/>
+      <circle cx="70"   cy="440" r="155"/>
+      <circle cx="260"  cy="478" r="125"/>
+      <circle cx="440"  cy="450" r="160"/>
+      <circle cx="620"  cy="472" r="118"/>
+      <circle cx="800"  cy="445" r="165"/>
+      <circle cx="980"  cy="475" r="132"/>
+      <circle cx="1160" cy="455" r="150"/>
+      <circle cx="1340" cy="472" r="122"/>
+      <circle cx="1520" cy="448" r="148"/>
+      <circle cx="1700" cy="470" r="138"/>
+    </g>
+    <!-- sh-m: medium shadow + paper grain (mid hills, mid trees) -->
+    <filter id="sh-m" x="-5%" y="-25%" width="115%" height="190%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65 0.38" numOctaves="4" seed="7" result="noise"/>
+      <feColorMatrix type="matrix" in="noise"
+        values="0.14 0.14 0.14 0 0.78  0.14 0.14 0.14 0 0.78  0.14 0.14 0.14 0 0.78  0 0 0 0 1"
+        result="grain"/>
+      <feComposite operator="in" in="grain" in2="SourceAlpha" result="grain-m"/>
+      <feBlend in="SourceGraphic" in2="grain-m" mode="multiply" result="tex"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="40" result="blur"/>
+      <feOffset dx="0" dy="-30" in="blur" result="off"/>
+      <feFlood flood-color="black" flood-opacity="0.80" result="flood"/>
+      <feComposite operator="in" in="flood" in2="off" result="shadow"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="tex"/></feMerge>
+    </filter>
+    <!-- sh-f: large shadow + paper grain (foreground ground, foreground trees) -->
+    <filter id="sh-f" x="-5%" y="-30%" width="115%" height="210%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65 0.38" numOctaves="4" seed="13" result="noise"/>
+      <feColorMatrix type="matrix" in="noise"
+        values="0.14 0.14 0.14 0 0.78  0.14 0.14 0.14 0 0.78  0.14 0.14 0.14 0 0.78  0 0 0 0 1"
+        result="grain"/>
+      <feComposite operator="in" in="grain" in2="SourceAlpha" result="grain-m"/>
+      <feBlend in="SourceGraphic" in2="grain-m" mode="multiply" result="tex"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="56" result="blur"/>
+      <feOffset dx="0" dy="-44" in="blur" result="off"/>
+      <feFlood flood-color="black" flood-opacity="0.80" result="flood"/>
+      <feComposite operator="in" in="flood" in2="off" result="shadow"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="tex"/></feMerge>
+    </filter>
+    <clipPath id="vp"><rect width="1600" height="900"/></clipPath>
+    <style>
+      /* Enhanced clouds: CSS drop-shadow for GPU-accelerated depth */
+      #paper-bg .cloud-far  { animation: cf 72s ease-in-out infinite alternate; filter: drop-shadow(0 11px 9px rgba(0,0,0,0.17)); will-change: transform; }
+      #paper-bg .cloud-mid  { animation: cm 52s ease-in-out infinite alternate; filter: drop-shadow(0 14px 11px rgba(0,0,0,0.21)); will-change: transform; }
+      #paper-bg .cloud-near { animation: cn 38s ease-in-out infinite alternate; filter: drop-shadow(0 17px 14px rgba(0,0,0,0.25)); will-change: transform; }
+      @keyframes cf { from { transform: translateX(-90px); }  to { transform: translateX(90px); } }
+      @keyframes cm { from { transform: translateX(120px); }  to { transform: translateX(-120px); } }
+      @keyframes cn { from { transform: translateX(-140px); } to { transform: translateX(140px); } }
+      @media (prefers-reduced-motion: reduce) {
+        #paper-bg .cloud-far, #paper-bg .cloud-mid, #paper-bg .cloud-near { animation: none !important; filter: none; }
+      }
+      /* Classic scalloped cloud animation */
+      #paper-bg #classic-clouds .ca { animation: ca 54s ease-in-out infinite alternate; }
+      #paper-bg #classic-clouds .cb { animation: cb 40s ease-in-out infinite alternate; }
+      @keyframes ca { from { transform: translateX(-120px); } to { transform: translateX(120px); } }
+      @keyframes cb { from { transform: translateX(90px);  } to { transform: translateX(-90px);  } }
+      @media (prefers-reduced-motion: reduce) {
+        #paper-bg #classic-clouds .ca, #paper-bg #classic-clouds .cb { animation: none !important; }
+      }
+    </style>
+  </defs>
+
+  <!-- Sky gradient backdrop -->
+  <rect width="1600" height="900" fill="url(#skyg)"/>
+  <!-- Static paper-grain overlay (non-animated, so filter runs once) -->
+  <rect width="1600" height="900" filter="url(#sh-s)" opacity="0.18" fill="none" pointer-events="none"/>
+
+  <!-- Enhanced clouds (3-layer circle-union paper-cut) — shown by default -->
+  <g id="enhanced-clouds">
+    <g clip-path="url(#vp)">
+      <g class="cloud-far">
+        <use href="#cc-far" fill="#a6d9f0"/>
+        <g opacity="0.55" filter="url(#cloudDepth)" transform="translate(0,8)">
+          <use href="#cc-far" fill="white"/>
+        </g>
+        <use href="#cc-far" fill="#f5fbfe" transform="translate(0,-48)"/>
+      </g>
+    </g>
+
+    <g clip-path="url(#vp)">
+      <g class="cloud-mid">
+        <use href="#cc-mid" fill="#7cbcd8"/>
+        <g opacity="0.50" filter="url(#cloudDepth)" transform="translate(0,10)">
+          <use href="#cc-mid" fill="white"/>
+        </g>
+        <use href="#cc-mid" fill="#e5f3fa" transform="translate(0,-62)"/>
+      </g>
+    </g>
+
+    <g clip-path="url(#vp)">
+      <g class="cloud-near">
+        <use href="#cc-near" fill="#5fa8c8"/>
+        <g opacity="0.48" filter="url(#cloudDepth)" transform="translate(0,11)">
+          <use href="#cc-near" fill="white"/>
+        </g>
+        <use href="#cc-near" fill="#ddf1fa" transform="translate(0,-75)"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Classic clouds (2 scalloped strips) — hidden by default; toggle in settings -->
+  <g id="classic-clouds" style="display:none">
+    <g clip-path="url(#vp)">
+      <path class="ca" filter="url(#sh-s)" fill="#e8f5fe" opacity="0.90"
+        d="M-280,900 L-280,262
+           C-170,218  -68,248   18,190
+           C  92,145  168,164  212,216
+           C 274,150  384,140  458,196
+           C 532,140  652,136  732,196
+           C 814,134  940,136 1020,196
+           C1100,132 1214,144 1285,196
+           C1360,140 1470,158 1552,214
+           C1620,158 1698,166 1900,134
+           L1900,900 Z"/>
+    </g>
+    <g clip-path="url(#vp)">
+      <path class="cb" filter="url(#sh-s)" fill="#f0f8ff" opacity="0.75"
+        d="M-280,900 L-280,374
+           C-148,326  -10,360   74,303
+           C 154,252  250,278  302,330
+           C 376,264  494,258  570,315
+           C 650,260  770,266  848,326
+           C 928,260 1054,254 1134,314
+           C1216,256 1342,270 1404,328
+           C1480,276 1596,286 1900,250
+           L1900,900 Z"/>
+    </g>
+  </g>
+
+  <!-- Far hills (blue-sage) — anchored to bottom edge -->
+  <g filter="url(#sh-s)">
+    <path fill="#81d4a8"
+      d="M-100,900 L-100,740
+         C  92,648  274,776  486,694
+         C 678,620  870,758 1084,676
+         C1260,608 1415,646 1624,600
+         L1700,900 Z"/>
+  </g>
+
+  <!-- Mid hills (green) — anchored to bottom edge -->
+  <g filter="url(#sh-m)">
+    <path fill="#55b860"
+      d="M-100,900 L-100,816
+         C  86,728  260,850  464,768
+         C 654,690  844,826 1044,744
+         C1224,668 1406,734 1624,688
+         L1700,900 Z"/>
+  </g>
+
+  <!-- Small middle-ground trees — subtle fill between mid hills and foreground -->
+  <g filter="url(#sh-m)">
+    <path fill="#3a9448" d="M455,900 L455,833 C455,818 430,812 430,806 Q460,745 490,806 C490,812 465,818 465,833 L465,900 Z"/>
+    <path fill="#3a9448" d="M615,900 L615,833 C615,818 590,812 590,806 Q620,745 650,806 C650,812 625,818 625,833 L625,900 Z"/>
+    <path fill="#3a9448" d="M785,900 L785,833 C785,818 760,812 760,806 Q790,745 820,806 C820,812 795,818 795,833 L795,900 Z"/>
+    <path fill="#3a9448" d="M985,900 L985,833 C985,818 960,812 960,806 Q990,745 1020,806 C1020,812 995,818 995,833 L995,900 Z"/>
+    <path fill="#3a9448" d="M1145,900 L1145,833 C1145,818 1120,812 1120,806 Q1150,745 1180,806 C1180,812 1155,818 1155,833 L1155,900 Z"/>
+  </g>
+
+  <!-- Mid-hill trees — straight trunk to y=900, 40px smooth flare into round crown -->
+  <g filter="url(#sh-m)">
+    <!-- Left tree A: tall, cx=108, shoulder y=670, tip y=522 -->
+    <path fill="#268531" d="M99,900 L99,710 C99,688 48,678 48,670 Q108,522 168,670 C168,678 117,688 117,710 L117,900 Z"/>
+    <!-- Left tree B: short+wide, cx=262, shoulder y=770, tip y=632 -->
+    <path fill="#268531" d="M253,900 L253,810 C253,788 192,778 192,770 Q262,632 332,770 C332,778 271,788 271,810 L271,900 Z"/>
+    <!-- Right tree C: medium, cx=1356, shoulder y=630, tip y=506 -->
+    <path fill="#268531" d="M1347,900 L1347,670 C1347,648 1291,638 1291,630 Q1356,506 1421,630 C1421,638 1365,648 1365,670 L1365,900 Z"/>
+    <!-- Right tree D: very tall+slender, cx=1488, shoulder y=618, tip y=484 -->
+    <path fill="#268531" d="M1480,900 L1480,658 C1480,636 1440,626 1440,618 Q1488,484 1536,618 C1536,626 1496,636 1496,658 L1496,900 Z"/>
+  </g>
+
+</svg>
+<canvas id="sky"></canvas>
+<svg id="vista-fg" viewBox="0 0 1916 821" xmlns="http://www.w3.org/2000/svg"
+     aria-hidden="true" preserveAspectRatio="xMidYMax slice">
+  <defs>
+    <clipPath id="vista-field-clip" clipPathUnits="userSpaceOnUse">
+      <path d="M0 638 C160 652 326 696 484 729 C663 767 906 757 1090 751 C1320 749 1499 706 1688 671 C1792 650 1864 645 1916 640 L1916 821 H0 Z"/>
+    </clipPath>
+  </defs>
+  <image href="images/sketch-kites-vista-clear-21-9.png" width="1916" height="821"
+         clip-path="url(#vista-field-clip)"/>
+</svg>
+<svg id="fg-layer" aria-hidden="true" viewBox="0 0 1600 900"
+     xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none"
+     style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:2;pointer-events:none;display:none">
+  <!-- Foreground ground (darkest) — anchored to bottom edge -->
+  <g filter="url(#sh-f)">
+    <path fill="#3dab4a"
+      d="M-100,900 L-100,860
+         C  60,780  214,856  368,798
+         C 506,748  650,815  796,767
+         C 962,709 1102,788 1256,740
+         C1432,680 1562,754 1700,708
+         L1700,900 Z"/>
+    <!-- Right viewport-edge foliage anchor -->
+    <path fill="#1b6628" d="M1700,900 L1700,820 C1668,798 1624,828 1604,812 C1584,796 1646,780 1700,804 Z"/>
+  </g>
+  <!-- Foreground trees — straight trunk to y=900, 40px smooth flare into round crown -->
+  <g filter="url(#sh-f)">
+    <!-- Left tree E: giant, cx=68, shoulder y=755, tip y=528; crown left anchors off-screen -->
+    <path fill="#167029" d="M57,900 L57,795 C57,773 -20,763 -20,755 Q68,528 156,755 C156,763 79,773 79,795 L79,900 Z"/>
+    <!-- Left tree F: medium, cx=218, shoulder y=780, tip y=628 -->
+    <path fill="#167029" d="M208,900 L208,820 C208,798 150,788 150,780 Q218,628 286,780 C286,788 228,798 228,820 L228,900 Z"/>
+    <!-- Right tree G: very tall, cx=1432, shoulder y=610, tip y=400 -->
+    <path fill="#167029" d="M1422,900 L1422,650 C1422,628 1358,618 1358,610 Q1432,400 1506,610 C1506,618 1442,628 1442,650 L1442,900 Z"/>
+    <!-- Right tree H: squat+wide, cx=1528, shoulder y=650, tip y=538 -->
+    <path fill="#167029" d="M1518,900 L1518,690 C1518,668 1460,658 1460,650 Q1528,538 1596,650 C1596,658 1538,668 1538,690 L1538,900 Z"/>
+  </g>
+</svg>
+<div id="tooltip"></div>
+<button id="recentBtn" title="Recent kites">🪁</button>
+<div id="recentPanel">
+  <h3>Recent kites <span id="recentCount"></span></h3>
+  <div id="recentList"></div>
+  <div class="recent-actions">
+    <button id="exportBtn">Export</button>
+    <button id="importBtn">Import</button>
+  </div>
+</div>
+
+<input type="file" id="importInput" accept=".json" hidden>
+
+<button id="settingsBtn" title="Settings">⚙</button>
+<div id="settingsPanel">
+  <h3>Settings</h3>
+  <div id="hubStatus">
+    <div class="hub-row">
+      <div class="hub-dot"></div>
+      <span class="hub-text">Live display — kites from all kiosks appear here automatically.</span>
+      <button class="hub-reconnect-btn" id="hubReconnectBtn" style="display:none">Reconnect</button>
+    </div>
+  </div>
+  <details class="settings-section">
+    <summary>Display</summary>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Speed</span>
+      <span class="ctrl-value" id="speedValue">10×</span>
+      <input type="range" class="ctrl-slider" id="speedSlider" min="1" max="100" value="10">
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Max kites</span>
+      <span class="ctrl-value" id="maxKitesValue">200</span>
+      <input type="range" class="ctrl-slider" id="maxKitesSlider" min="50" max="500" value="200">
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Scale</span>
+      <span class="ctrl-value" id="scaleValue">70%</span>
+      <input type="range" class="ctrl-slider" id="scaleSlider" min="40" max="140" value="70">
+    </div>
+    <button id="resetSpeedBtn" class="ctrl-reset">Reset animation</button>
+  </details>
+  <details class="settings-section">
+    <summary>Shadows</summary>
+    <div id="shadowControls">
+      <div class="ctrl-row">
+        <span class="ctrl-label">Opacity</span>
+        <span class="ctrl-value" id="shadowDarknessValue">20%</span>
+        <input type="range" class="ctrl-slider" id="shadowDarkness" min="0" max="100" value="20">
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Distance</span>
+        <span class="ctrl-value" id="shadowDistanceValue">70%</span>
+        <input type="range" class="ctrl-slider" id="shadowDistance" min="0" max="100" value="70">
+      </div>
+      <button id="resetShadowsBtn" class="ctrl-reset">Reset</button>
+    </div>
+  </details>
+  <div class="settings-section">
+    <h4>Header text</h4>
+    <div class="logo-row">
+      <label class="logo-label" for="titleInput">Title</label>
+      <input type="text" id="titleInput" class="ctrl-input" maxlength="80" autocomplete="off">
+    </div>
+    <div class="logo-row">
+      <label class="logo-label" for="subtitleInput">Subtitle</label>
+      <input type="text" id="subtitleInput" class="ctrl-input" maxlength="80" autocomplete="off">
+    </div>
+    <button id="resetHeaderBtn" class="ctrl-reset">Reset header</button>
+  </div>
+  <div class="settings-section">
+    <h4>Logos</h4>
+    <div id="logoList"></div>
+  </div>
+  <div class="settings-section">
+    <h4>Background</h4>
+    <div class="logo-row">
+      <label class="logo-label" for="backgroundSelect">Scene</label>
+      <select id="backgroundSelect" class="ctrl-select">
+        <option value="vista">Vista</option>
+        <option value="classic">Classic</option>
+        <option value="enhanced">Enhanced</option>
+      </select>
+    </div>
+  </div>
+  <div class="settings-section">
+    <h4>QR code</h4>
+    <div class="logo-row">
+      <span class="logo-label">Show QR code</span>
+      <label class="logo-switch">
+        <input type="checkbox" id="qrToggle">
+        <span class="logo-slider"></span>
+      </label>
+    </div>
+    <div class="logo-row">
+      <span class="logo-label">URL</span>
+      <select id="qrSourceSelect" class="ctrl-select">
+        <option value="auto">Upload page (auto)</option>
+        <option value="custom">Custom URL</option>
+      </select>
+    </div>
+    <div class="logo-row" id="qrCustomRow" style="display:none">
+      <input type="url" id="qrCustomUrl" class="ctrl-input" placeholder="https://example.com" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+  <div class="settings-section" id="cacheSection">
+    <h4>Cache</h4>
+    <button id="resetCacheBtn">Reset cache</button>
+    <button id="clearAllBtn" style="display:none">Clear all kites</button>
+  </div>
+</div>
+
+<div id="confirmOverlay">
+  <div id="confirmBox">
+    <p id="confirmMsg">Clear all kites from the cache?<span>This cannot be undone.</span></p>
+    <div class="confirm-actions">
+      <button id="confirmYes">Clear</button>
+      <button id="confirmNo">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="demoChip" style="display:none">DEMO</div>
+
+<div id="qrCorner">
+  <div class="qrLabel">Add your kite</div>
+  <img id="qrImg" alt="Scan QR code to add your kite.">
+</div>
+
+
+<script>
+const canvas = document.getElementById('sky');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+
+// ── Demo mode ─────────────────────────────────────────────────────────────────
+// ?demo (optional ?demo=N kite count) runs a self-contained showcase: no hub,
+// BroadcastChannel or storage reads/writes, so it can never touch real kites.
+const demoParam = new URLSearchParams(location.search).get('demo');
+const demo = demoParam !== null;
+const DEMO_DEFAULT_COUNT = 12;
+const DEMO_KITE_INTERVAL = 6000;   // ms between new demo kites
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Kites ────────────────────────────────────────────────────────────────────
+let kites = [];
+
+function randomBetween(a, b) { return a + Math.random() * (b - a); }
+
+function makeKiteFromData(data, isNew = false) {
+  const img = new Image();
+  img.src = data.dataURL;
+  const kite = {
+    ...data,
+    img,
+    anchorX: data.anchorX ?? data.cx,
+    anchorY: data.anchorY ?? 0.84,
+    createdAt: data.createdAt ?? Date.now(),
+    t0: performance.now() / 1000 - Math.random() * 20,
+    launchStart: isNew ? performance.now() / 1000 : undefined,
+  };
+  return kite;
+}
+
+const DECAY_TAU = 1800; // seconds (oscillation half-period)
+const LAUNCH_DURATION = 4; // seconds from ground to sky
+const DEFAULT_SPEED_MUL = 10;
+let speedMul = DEFAULT_SPEED_MUL; // oscillation speed multiplier (1×–100×)
+let maxKites = 200;
+let driftingKites = [];
+const DRIFT_DURATION = 3.5;
+let globalScaleMul = 0.7;
+
+// Kites will not fly above the header; `headerSafeTop` (px) is measured from
+// #eventHeader in the "Header text and logos" section below.
+
+const MIN_KITE_ORDER_SCALE = 0.65;
+const MAX_KITE_ORDER_SCALE = 1.35;
+
+function getDisplayScale(k) {
+  // Sort by createdAt so newest kite becomes biggest
+  const sorted = [...kites].sort((a, b) => a.createdAt - b.createdAt);
+  const index = sorted.findIndex(item => item.createdAt === k.createdAt);
+
+  const count = Math.max(sorted.length - 1, 1);
+  const orderRatio = index / count;
+  // Oldest = smaller, latest = bigger
+  const orderScale =
+    MIN_KITE_ORDER_SCALE +
+    orderRatio * (MAX_KITE_ORDER_SCALE - MIN_KITE_ORDER_SCALE);
+
+  const ageSec = (Date.now() - k.createdAt) / 1000;
+  const initial = k.scale * 2.4; 
+  // Previously this was k.scale * 2
+  // Increase this number if you want all kites bigger
+
+  const cosVal = Math.cos(ageSec * Math.PI / (DECAY_TAU / speedMul));
+
+  return initial * orderScale * (0.9 + 0.1 * cosVal) * globalScaleMul;
+}
+
+function persistEviction(ids) {
+  if (demo || !ids.length) return;
+  if (window.location.protocol === 'file:') {
+    for (const id of ids) KiteStore.remove(id).catch(() => {});
+  } else {
+    for (const id of ids) {
+      fetch('/api/remove-kite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }).catch(() => {});
+    }
+  }
+}
+
+function enforceKiteCap() {
+  const now = performance.now() / 1000;
+  const evictedIds = [];
+  while (kites.length > maxKites) {
+    const ejected = kites.shift();
+    ejected.driftStart = now;
+    ejected.driftDirX = Math.random() < 0.5 ? -1 : 1;
+    driftingKites.push(ejected);
+    if (ejected.id) evictedIds.push(ejected.id);
+  }
+  persistEviction(evictedIds);
+}
+
+async function loadKitesFromStorage() {
+  if (window.location.protocol !== 'file:') {
+    // ── Network mode: load from hub server ─────────────────────────────────
+    try {
+      const res = await fetch('/api/kites');
+      const arr = await res.json();
+      kites = arr.map(d => makeKiteFromData(d));
+      enforceKiteCap();
+    } catch (e) {
+      console.warn('Failed to load kites from server', e);
+    }
+  } else {
+    // ── Fallback: file:// mode (single computer) ──────────────────────────
+    try {
+      await KiteStore.migrateFromLocalStorage();
+      const arr = await KiteStore.getAll();
+      kites = arr.map(d => makeKiteFromData(d));
+      enforceKiteCap();
+    } catch (e) {
+      console.warn('Failed to load kites from IndexedDB', e);
+    }
+  }
+}
+
+function getKitePos(k, t) {
+  const elapsed = t - k.t0;
+  const ageSec = (Date.now() - k.createdAt) / 1000;
+  const cosVal = Math.cos(ageSec * Math.PI / (DECAY_TAU / speedMul));
+  const maxCy = k.maxCy ?? 0.95;
+  const effectiveCy = (k.cy + maxCy) / 2 - (maxCy - k.cy) / 2 * cosVal;
+  const x = k.cx * W + k.ampX * W * Math.sin(k.freqX * elapsed + k.phaseX);
+  
+  let y = effectiveCy * H * 0.8 + k.ampY * H * 0.3 * Math.sin(k.freqY * elapsed + k.phaseY);
+
+  // Prevent kites from flying over the title/header area
+  const kiteRadius = getDisplayScale(k) * 0.6;
+  const safeTop = headerSafeTop + kiteRadius;
+
+  y = Math.max(y, safeTop);
+
+  if (k.launchStart != null) {
+    const lElapsed = t - k.launchStart;
+    if (lElapsed < LAUNCH_DURATION) {
+      // ease-out cubic: rapid ascent that slows as it catches the wind
+      const p = lElapsed / LAUNCH_DURATION;
+      const eased = 1 - Math.pow(1 - p, 3);
+      const groundX = k.anchorX * W;
+      const groundY = H;
+      return {
+        x: groundX + (x - groundX) * eased,
+        y: groundY + (y - groundY) * eased,
+      };
+    }
+  }
+
+  return { x, y };
+}
+
+
+// Heading: kite faces away from anchor (angle from anchor → kite).
+// Because the anchor is always below the canvas the angle is always in the
+// upper half-plane, so the kite can never rotate 360°.
+function getKiteHeading(k, t, x, y) {
+  const stringAngle = Math.atan2(y - H, x - k.anchorX * W);
+  const rock = k.rockAmp * Math.sin(k.rockFreq * (t - k.t0) + k.rockPhase);
+  return stringAngle + rock;
+}
+
+function drawKite(k, t) {
+  const { x, y } = getKitePos(k, t);
+
+  let launchAlpha = 1;
+  if (k.launchStart != null) {
+    const lElapsed = t - k.launchStart;
+    if (lElapsed < LAUNCH_DURATION) launchAlpha = Math.min(1, lElapsed / 1.2);
+  }
+
+  // Anchor: the off-screen point where someone holds the string
+  const ax = k.anchorX * W;
+  const ay = H;
+  const heading = getKiteHeading(k, t, x, y);
+
+  // ── Draw string ─────────────────────────────────────────────────────────────
+  // Quadratic bezier from anchor to kite; control point sags downward.
+  const strLen = Math.hypot(x - ax, y - ay);
+  const mx = (ax + x) / 2 + (x - ax) * 0.04;
+  const my = (ay + y) / 2 + strLen * 0.07; // sag toward screen bottom
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.quadraticCurveTo(mx, my, x, y);
+  ctx.strokeStyle = '#3a2a1a';
+  ctx.lineWidth = 0.8;
+  ctx.globalAlpha = 0.8 * launchAlpha;
+  ctx.stroke();
+  ctx.restore();
+
+  // ── Draw kite image ──────────────────────────────────────────────────────────
+  const w = getDisplayScale(k);
+  const h = k.img.naturalHeight ? w * (k.img.naturalHeight / k.img.naturalWidth) : w;
+
+  ctx.save();
+  ctx.globalAlpha = launchAlpha;
+  ctx.translate(x, y);
+  // +π/2 corrects for canvas convention: rotate(0) = image-top faces screen-up,
+  // but heading ≈ -π/2 when the anchor is directly below the kite, so we shift
+  // by π/2 so the image sits upright when flying straight up.
+  ctx.rotate(heading + Math.PI / 2);
+  ctx.shadowColor = 'rgba(0,0,0,0.22)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 3;
+  ctx.shadowOffsetY = 5;
+
+  if (k.img.complete && k.img.naturalWidth > 0) {
+    ctx.drawImage(k.img, -w / 2, -h / 2, w, h);
+  } else {
+    ctx.fillStyle = '#e03c3c';
+    ctx.beginPath();
+    ctx.moveTo(0, -w / 2); ctx.lineTo(w / 2, 0);
+    ctx.lineTo(0, w / 2); ctx.lineTo(-w / 2, 0);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function drawDriftingKite(k, t) {
+  const elapsed = t - k.driftStart;
+  const alpha = Math.max(0, 1 - elapsed / DRIFT_DURATION);
+  if (alpha <= 0) return;
+
+  const { x, y } = getKitePos(k, t);
+  const xOffset = k.driftDirX * elapsed * 15;
+  const yOffset = -elapsed * 80;
+  const w = getDisplayScale(k);
+  const h = k.img.naturalHeight ? w * (k.img.naturalHeight / k.img.naturalWidth) : w;
+
+  const elapsed0 = t - k.t0;
+  const ax = k.anchorX * W;
+  const ay = H;
+  const stringAngle = Math.atan2(y - ay, x - ax);
+  const rock = k.rockAmp * Math.sin(k.rockFreq * elapsed0 + k.rockPhase);
+  const heading = stringAngle + rock;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x + xOffset, y + yOffset);
+  ctx.rotate(heading + Math.PI / 2);
+  ctx.shadowColor = 'rgba(0,0,0,0.22)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 3;
+  ctx.shadowOffsetY = 5;
+  if (k.img.complete && k.img.naturalWidth > 0) {
+    ctx.drawImage(k.img, -w / 2, -h / 2, w, h);
+  } else {
+    ctx.fillStyle = '#e03c3c';
+    ctx.beginPath();
+    ctx.moveTo(0, -w / 2); ctx.lineTo(w / 2, 0);
+    ctx.lineTo(0, w / 2); ctx.lineTo(-w / 2, 0);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ── Tooltip ──────────────────────────────────────────────────────────────────
+let mouseX = -9999, mouseY = -9999;
+canvas.addEventListener('mousemove', e => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+});
+canvas.addEventListener('mouseleave', () => {
+  mouseX = -9999; mouseY = -9999;
+  tooltip.style.display = 'none';
+});
+
+// Low-res alpha mask of the kite image, built once per kite, so transparent
+// corners of the image don't count as "on the kite".
+const HIT_MASK_SIZE = 64;
+const HIT_ALPHA_MIN = 128;
+
+function getHitMask(k) {
+  if (k.hitMask !== undefined) return k.hitMask;
+  if (!k.img.complete || !k.img.naturalWidth) return null; // not loaded yet — retry later
+  try {
+    const c = document.createElement('canvas');
+    c.width = c.height = HIT_MASK_SIZE;
+    const cctx = c.getContext('2d');
+    cctx.drawImage(k.img, 0, 0, HIT_MASK_SIZE, HIT_MASK_SIZE);
+    k.hitMask = cctx.getImageData(0, 0, HIT_MASK_SIZE, HIT_MASK_SIZE).data;
+  } catch (e) {
+    k.hitMask = null; // tainted canvas (e.g. logo images over file://) — use the box only
+  }
+  return k.hitMask;
+}
+
+function isOverKite(k, t, px, py) {
+  const { x, y } = getKitePos(k, t);
+  const w = getDisplayScale(k);
+  const h = k.img.naturalHeight ? w * (k.img.naturalHeight / k.img.naturalWidth) : w;
+
+  // Undo the kite's rotation so the pointer is in the image's own coordinates
+  const a = -(getKiteHeading(k, t, x, y) + Math.PI / 2);
+  const dx = px - x, dy = py - y;
+  const lx = dx * Math.cos(a) - dy * Math.sin(a);
+  const ly = dx * Math.sin(a) + dy * Math.cos(a);
+  if (!(Math.abs(lx) <= w / 2 && Math.abs(ly) <= h / 2)) return false; // also rejects NaN positions
+
+  const mask = getHitMask(k);
+  if (!mask) return true;
+  const mx = Math.min(HIT_MASK_SIZE - 1, Math.floor((lx / w + 0.5) * HIT_MASK_SIZE));
+  const my = Math.min(HIT_MASK_SIZE - 1, Math.floor((ly / h + 0.5) * HIT_MASK_SIZE));
+  return mask[(my * HIT_MASK_SIZE + mx) * 4 + 3] >= HIT_ALPHA_MIN;
+}
+
+function checkTooltip(t) {
+  let hit = null;
+  // Topmost first: newer kites are drawn after older ones
+  for (const k of [...kites].reverse()) {
+    if (isOverKite(k, t, mouseX, mouseY)) {
+      hit = k;
+      break;
+    }
+  }
+  if (hit) {
+    autoTooltipKite = null; // hover wins over the auto tooltip
+    tooltip.textContent = hit.name || 'Unnamed kite';
+    tooltip.style.left = `${mouseX}px`;
+    tooltip.style.top = `${mouseY - 50}px`;
+    tooltip.style.transform = 'translateX(-50%)';
+    tooltip.style.display = 'block';
+  } else if (!autoTooltipKite) {
+    tooltip.style.display = 'none';
+  }
+}
+
+
+// show random tooltip every few seconds 
+let autoTooltipKite = null;
+let autoTooltipUntil = 0;
+
+function showRandomKiteTooltip() {
+  const visibleNamedKites = kites.filter(k =>
+    !k.hidden &&
+    k.name &&
+    k.name.trim() !== '' &&
+    k.name.trim().toLowerCase() !== 'unnamed kite'
+  );
+
+  if (!visibleNamedKites.length) return;
+
+  autoTooltipKite = visibleNamedKites[Math.floor(Math.random() * visibleNamedKites.length)];
+  autoTooltipUntil = Date.now() + 3500; // show for 3.5 seconds
+}
+
+// Show a random kite name every 6 seconds
+setInterval(showRandomKiteTooltip, 6000);
+
+
+
+// ── Real-time updates: SSE (network mode) or BroadcastChannel (file:// mode) ──
+if (demo) {
+  // Demo mode: no hub connection and no cross-tab sync
+} else if (window.location.protocol !== 'file:') {
+  // Server-Sent Events — display screen subscribes to the hub
+  let es = null;
+  let retryDelay = 3000; // ms, doubles up to 30 s on repeated failures
+
+  function resetRetryDelay() { retryDelay = 3000; }
+
+  function updateHubStatus(state) {
+    const hub = document.getElementById('hubStatus');
+    const text = hub.querySelector('.hub-text');
+    const btn = document.getElementById('hubReconnectBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
+    hub.classList.remove('hub-connecting', 'hub-disconnected');
+    settingsBtn.classList.remove('has-alert');
+    btn.style.display = 'none';
+    if (state === 'connected') {
+      resetRetryDelay();
+      text.textContent = 'Live display — kites from all kiosks appear here automatically.';
+    } else if (state === 'connecting') {
+      hub.classList.add('hub-connecting');
+      text.textContent = 'Connecting to hub...';
+    } else if (state === 'disconnected') {
+      hub.classList.add('hub-disconnected');
+      settingsBtn.classList.add('has-alert');
+      text.textContent = 'Disconnected — hub server is offline. Start the server and the display will reconnect automatically.';
+      btn.style.display = '';
+    }
+  }
+
+  function connectSSE() {
+    updateHubStatus('connecting');
+    es = new EventSource('/api/events');
+    es.onopen = () => updateHubStatus('connected');
+    es.addEventListener('new-kite', e => {
+      kites.push(makeKiteFromData(JSON.parse(e.data), true));
+      enforceKiteCap();
+      updateCount();
+    });
+    es.addEventListener('clear', () => {
+      kites = [];
+      updateCount();
+      renderRecentPanel();
+    });
+    es.addEventListener('remove-kite', e => {
+      const { id } = JSON.parse(e.data);
+      kites = kites.filter(k => k.id !== id);
+      updateCount();
+      renderRecentPanel();
+    });
+    es.onerror = () => {
+      es.close();
+      updateHubStatus('disconnected');
+      // Exponential backoff: 3 s → 6 s → 12 s → 24 s → 30 s max
+      setTimeout(connectSSE, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 30000);
+    };
+  }
+  connectSSE();
+
+  document.getElementById('hubReconnectBtn').addEventListener('click', () => {
+    es.close();
+    resetRetryDelay();
+    connectSSE();
+  });
+} else {
+  // BroadcastChannel — same-computer cross-tab sync (file:// fallback)
+  const bc = new BroadcastChannel('sketch-kites');
+  bc.onmessage = e => {
+    if (e.data?.type === 'new-kite') {
+      kites.push(makeKiteFromData(e.data.kite, true));
+      enforceKiteCap();
+      updateCount();
+    }
+  };
+}
+
+function updateCount() {}
+
+// ── Header text and logos ─────────────────────────────────────────────────────
+const LOCAL_KEY_TITLE = 'sketch-kites-title';
+const LOCAL_KEY_SUBTITLE = 'sketch-kites-subtitle';
+const LOCAL_KEY_LOGOS = 'sketch-kites-logos'; // JSON array of enabled logo indices
+const DEFAULT_TITLE = 'Welcome to SDYIC Grand Finale 2026';
+const DEFAULT_SUBTITLE = 'Come fly your wau at our booth!';
+const DEFAULT_LOGOS = [1, 2];
+
+const LOGOS = [
+  { src: 'images/logo01.png', label: 'Logo 1' },
+  { src: 'images/logo02.png', label: 'Logo 2' },
+  { src: 'images/logo03.png', label: 'Logo 3' },
+];
+
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsPanel = document.getElementById('settingsPanel');
+const logoList = document.getElementById('logoList');
+const eventHeader = document.getElementById('eventHeader');
+const eventLogos = document.getElementById('eventLogos');
+const eventTitle = document.getElementById('eventTitle');
+const eventSubtitle = document.getElementById('eventSubtitle');
+const titleInput = document.getElementById('titleInput');
+const subtitleInput = document.getElementById('subtitleInput');
+const resetHeaderBtn = document.getElementById('resetHeaderBtn');
+
+let headerTitle = DEFAULT_TITLE;
+let headerSubtitle = DEFAULT_SUBTITLE;
+let enabledLogos = new Set(DEFAULT_LOGOS);
+try {
+  const storedTitle = localStorage.getItem(LOCAL_KEY_TITLE);
+  if (storedTitle !== null) headerTitle = storedTitle;
+  const storedSubtitle = localStorage.getItem(LOCAL_KEY_SUBTITLE);
+  if (storedSubtitle !== null) headerSubtitle = storedSubtitle;
+  const storedLogos = JSON.parse(localStorage.getItem(LOCAL_KEY_LOGOS));
+  if (Array.isArray(storedLogos)) enabledLogos = new Set(storedLogos.filter(i => LOGOS[i]));
+} catch (_) { /* localStorage unavailable or corrupt */ }
+
+// Kites stay below the header, whatever its current height
+let headerSafeTop = 170;
+function updateHeaderSafeTop() {
+  headerSafeTop = eventHeader.getBoundingClientRect().bottom + 16;
+}
+
+function applyHeader() {
+  eventTitle.textContent = headerTitle;
+  eventTitle.hidden = !headerTitle.trim();
+  eventSubtitle.textContent = headerSubtitle;
+  eventSubtitle.hidden = !headerSubtitle.trim();
+  eventLogos.querySelectorAll('.event-logo').forEach(img => {
+    img.hidden = !enabledLogos.has(Number(img.dataset.logo));
+  });
+  eventLogos.hidden = enabledLogos.size === 0;
+  updateHeaderSafeTop();
+}
+
+function renderLogoPanel() {
+  logoList.innerHTML = LOGOS.map((logo, i) => `
+    <div class="logo-row">
+      <img class="logo-thumb" src="${logo.src}" alt="">
+      <span class="logo-label">${logo.label}</span>
+      <label class="logo-switch">
+        <input type="checkbox" class="logo-toggle" data-index="${i}" ${enabledLogos.has(i) ? 'checked' : ''}>
+        <span class="logo-slider"></span>
+      </label>
+    </div>
+  `).join('');
+}
+
+titleInput.value = headerTitle;
+subtitleInput.value = headerSubtitle;
+renderLogoPanel();
+applyHeader();
+window.addEventListener('resize', updateHeaderSafeTop);
+// Webfont and logo loading change the header height after first layout
+window.addEventListener('load', updateHeaderSafeTop);
+if (document.fonts) document.fonts.ready.then(updateHeaderSafeTop);
+eventLogos.addEventListener('load', updateHeaderSafeTop, true);
+
+settingsBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  settingsPanel.classList.toggle('show');
+});
+
+settingsPanel.addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => settingsPanel.classList.remove('show'));
+
+// ── Background scene ───────────────────────────────────────────────────────
+const LOCAL_KEY_BACKGROUND = 'sketch-kites-background';
+const backgroundSelect = document.getElementById('backgroundSelect');
+const vistaBg = document.getElementById('vista-bg');
+const vistaFg = document.getElementById('vista-fg');
+const paperBg = document.getElementById('paper-bg');
+const fgLayer = document.getElementById('fg-layer');
+const enhancedClouds = document.getElementById('enhanced-clouds');
+const classicClouds = document.getElementById('classic-clouds');
+
+function applyBackgroundMode(mode) {
+  const vista = mode === 'vista';
+  vistaBg.style.display = vista ? '' : 'none';
+  vistaFg.style.display = vista ? '' : 'none';
+  paperBg.style.display = vista ? 'none' : '';
+  fgLayer.style.display = vista ? 'none' : '';
+  enhancedClouds.style.display = mode === 'enhanced' ? '' : 'none';
+  classicClouds.style.display = mode === 'classic' ? '' : 'none';
+  backgroundSelect.value = mode;
+}
+
+let backgroundMode = 'vista';
+try {
+  const stored = localStorage.getItem(LOCAL_KEY_BACKGROUND);
+  if (stored === 'classic' || stored === 'enhanced') backgroundMode = stored;
+} catch (_) { /* localStorage unavailable */ }
+applyBackgroundMode(backgroundMode);
+
+backgroundSelect.addEventListener('change', () => {
+  backgroundMode = backgroundSelect.value;
+  applyBackgroundMode(backgroundMode);
+  try { localStorage.setItem(LOCAL_KEY_BACKGROUND, backgroundMode); } catch (_) {}
+});
+
+// ── QR code toggle + URL ──────────────────────────────────────────────────
+const LOCAL_KEY_QR_VISIBLE = 'sketch-kites-qr-visible';
+const LOCAL_KEY_QR_SOURCE = 'sketch-kites-qr-source'; // 'auto' | 'custom'
+const LOCAL_KEY_QR_URL = 'sketch-kites-qr-url';
+const qrCorner = document.getElementById('qrCorner');
+const qrImg = document.getElementById('qrImg');
+const qrToggle = document.getElementById('qrToggle');
+const qrSourceSelect = document.getElementById('qrSourceSelect');
+const qrCustomRow = document.getElementById('qrCustomRow');
+const qrCustomUrl = document.getElementById('qrCustomUrl');
+
+// location.origin is often 'localhost', which a phone can't reach — ask the
+// server for its LAN IP so the QR code points somewhere scannable.
+async function deriveQrUrl() {
+  const uploadPath = location.pathname.replace(/display(-test)?\.html$/, 'upload.html');
+  try {
+    const res = await fetch('/api/host-info');
+    const info = await res.json();
+    return `http://${info.ip}:${info.port}${uploadPath}`;
+  } catch (_) {
+    return location.origin + uploadPath;
+  }
+}
+
+// An empty result means there is nothing scannable to show. A file:// upload
+// page can't be opened from another device, so 'auto' only works over the network.
+async function resolveQrUrl(source, customUrl) {
+  if (source === 'custom') return customUrl.trim();
+  if (window.location.protocol === 'file:' || demo) return '';
+  return deriveQrUrl();
+}
+
+function renderQrImage(url) {
+  const qr = qrcode(0, 'M');
+  qr.addData(url);
+  qr.make();
+  const cellSize = 4, margin = 8;
+  const n = qr.getModuleCount();
+  const size = n * cellSize + margin * 2;
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const cx = c.getContext('2d');
+  cx.fillStyle = '#fff'; cx.fillRect(0, 0, size, size);
+  cx.fillStyle = '#000';
+  for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) {
+    if (qr.isDark(r, col)) cx.fillRect(margin + col * cellSize, margin + r * cellSize, cellSize, cellSize);
+  }
+  qrImg.src = c.toDataURL();
+}
+
+let qrVisible = true;
+try {
+  const storedVisible = localStorage.getItem(LOCAL_KEY_QR_VISIBLE);
+  if (storedVisible !== null) qrVisible = storedVisible === 'true';
+} catch (_) { /* localStorage unavailable */ }
+
+let qrSource = 'auto';
+let qrUrl = '';
+try {
+  if (localStorage.getItem(LOCAL_KEY_QR_SOURCE) === 'custom') qrSource = 'custom';
+  qrUrl = localStorage.getItem(LOCAL_KEY_QR_URL) || '';
+} catch (_) { /* localStorage unavailable */ }
+
+let qrReady = false;   // true when qrImg holds a scannable code
+let qrRefreshId = 0;   // discards stale results when settings change mid-fetch
+
+function applyQrVisibility() {
+  qrCorner.style.display = (qrVisible && qrReady) ? '' : 'none';
+  qrToggle.checked = qrVisible;
+  qrCustomRow.style.display = qrSource === 'custom' ? '' : 'none';
+}
+
+async function refreshQr() {
+  const id = ++qrRefreshId;
+  let url = '';
+  try { url = await resolveQrUrl(qrSource, qrUrl); } catch (_) {}
+  if (id !== qrRefreshId) return;
+  qrReady = false;
+  if (url) {
+    try {
+      renderQrImage(url);
+      qrReady = true;
+    } catch (e) {
+      console.warn('QR generation failed', e);
+    }
+  }
+  applyQrVisibility();
+}
+
+qrSourceSelect.value = qrSource;
+qrCustomUrl.value = qrUrl;
+applyQrVisibility();
+refreshQr();
+
+qrToggle.addEventListener('change', () => {
+  qrVisible = qrToggle.checked;
+  applyQrVisibility();
+  try { localStorage.setItem(LOCAL_KEY_QR_VISIBLE, String(qrVisible)); } catch (_) {}
+});
+
+qrSourceSelect.addEventListener('change', () => {
+  qrSource = qrSourceSelect.value;
+  applyQrVisibility();
+  refreshQr();
+  try { localStorage.setItem(LOCAL_KEY_QR_SOURCE, qrSource); } catch (_) {}
+});
+
+qrCustomUrl.addEventListener('input', () => {
+  qrUrl = qrCustomUrl.value;
+  refreshQr();
+  try { localStorage.setItem(LOCAL_KEY_QR_URL, qrUrl); } catch (_) {}
+});
+
+// ── Speed slider ──────────────────────────────────────────────────────────────
+const speedSlider = document.getElementById('speedSlider');
+const speedValue = document.getElementById('speedValue');
+const resetSpeedBtn = document.getElementById('resetSpeedBtn');
+
+speedSlider.addEventListener('input', () => {
+  speedMul = Number(speedSlider.value);
+  speedValue.textContent = speedMul + '×';
+});
+
+resetSpeedBtn.addEventListener('click', () => {
+  speedMul = DEFAULT_SPEED_MUL;
+  speedSlider.value = DEFAULT_SPEED_MUL;
+  speedValue.textContent = DEFAULT_SPEED_MUL + '×';
+});
+
+const maxKitesSlider = document.getElementById('maxKitesSlider');
+const maxKitesValueEl = document.getElementById('maxKitesValue');
+
+maxKitesSlider.addEventListener('input', e => {
+  const val = +e.target.value;
+  maxKitesValueEl.textContent = val;
+  // Raising the cap (or file:// mode) applies immediately; lowering in server
+  // mode permanently deletes kites for everyone, so that's confirmed on 'change' below.
+  if (val >= maxKites || window.location.protocol === 'file:') {
+    maxKites = val;
+    enforceKiteCap();
+  }
+});
+
+maxKitesSlider.addEventListener('change', e => {
+  const val = +e.target.value;
+  if (val >= maxKites || window.location.protocol === 'file:') return;
+  const evictCount = kites.length - val;
+  if (evictCount <= 0) {
+    maxKites = val;
+    return;
+  }
+  showConfirm(
+    `Lower Max Kites to ${val}?<span>This permanently removes ${evictCount} kite(s) from the hub for everyone.</span>`,
+    'Lower',
+    () => {
+      maxKites = val;
+      maxKitesSlider.value = val;
+      maxKitesValueEl.textContent = val;
+      enforceKiteCap();
+    }
+  );
+  // Snap the slider back until the user confirms; enforceKiteCap() above
+  // updates it to `val` if they do.
+  maxKitesSlider.value = maxKites;
+  maxKitesValueEl.textContent = maxKites;
+});
+
+document.getElementById('scaleSlider').addEventListener('input', e => {
+  globalScaleMul = +e.target.value / 100;
+  document.getElementById('scaleValue').textContent = e.target.value + '%';
+});
+
+// ── Shadow controls ──────────────────────────────────────────────────────────
+const shadowDarknessSlider = document.getElementById('shadowDarkness');
+const shadowDarknessValue = document.getElementById('shadowDarknessValue');
+const shadowDistanceSlider = document.getElementById('shadowDistance');
+const shadowDistanceValue = document.getElementById('shadowDistanceValue');
+const resetShadowsBtn = document.getElementById('resetShadowsBtn');
+
+// Original shadow values (before our darkening/distance increases)
+const ORIGINAL_SHADOWS = {
+  sh_s: { dy: -9, stdDev: 9, opacity: 0.32 },
+  sh_m: { dy: -17, stdDev: 13, opacity: 0.48 },
+  sh_f: { dy: -26, stdDev: 19, opacity: 0.62 }
+};
+
+// Default slider positions
+const DEFAULT_SHADOWS = {
+  darkness: 20,  // 20% opacity
+  distance: 70   // 70% of original distance
+};
+
+function updateShadows(darkness, distance) {
+  // darkness: 0-100 (opacity 0-1)
+  // distance: 0-100 (percentage of original values)
+  
+  const opacity = darkness / 100;  // 0-1 range
+  const distPct = distance / 100;  // 0-1 range
+  
+  // Get SVG filter elements
+  const shS = document.getElementById('sh-s');
+  const shM = document.getElementById('sh-m');
+  const shF = document.getElementById('sh-f');
+  
+  if (!shS || !shM || !shF) return;
+  
+  // Base values (100% = full shadow). stdDev > |dy| for smooth gradients.
+  const shSDy = Math.round(-18 * distPct);
+  const shSStdDev = Math.round(24 * distPct);
+  
+  const shMDy = Math.round(-30 * distPct);
+  const shMStdDev = Math.round(40 * distPct);
+  
+  const shFDy = Math.round(-44 * distPct);
+  const shFStdDev = Math.round(56 * distPct);
+  
+  // Scale opacity for each layer (sh-s gets 100%, sh-m gets 150%, sh-f gets 190%)
+  const shSOpacity = opacity;
+  const shMOpacity = Math.min(opacity * 1.5, 1);
+  const shFOpacity = Math.min(opacity * 1.9, 1);
+  
+  // Update sh-s
+  const shSShadow = shS.querySelector('feFlood');
+  const shSOffset = shS.querySelector('feOffset');
+  const shSBlur = shS.querySelector('feGaussianBlur');
+  if (shSShadow) shSShadow.setAttribute('flood-opacity', shSOpacity.toFixed(2));
+  if (shSOffset) shSOffset.setAttribute('dy', shSDy);
+  if (shSBlur) shSBlur.setAttribute('stdDeviation', shSStdDev);
+  
+  // Update sh-m
+  const shMShadow = shM.querySelector('feFlood');
+  const shMOffset = shM.querySelector('feOffset');
+  const shMBlur = shM.querySelector('feGaussianBlur');
+  if (shMShadow) shMShadow.setAttribute('flood-opacity', shMOpacity.toFixed(2));
+  if (shMOffset) shMOffset.setAttribute('dy', shMDy);
+  if (shMBlur) shMBlur.setAttribute('stdDeviation', shMStdDev);
+  
+  // Update sh-f
+  const shFShadow = shF.querySelector('feFlood');
+  const shFOffset = shF.querySelector('feOffset');
+  const shFBlur = shF.querySelector('feGaussianBlur');
+  if (shFShadow) shFShadow.setAttribute('flood-opacity', shFOpacity.toFixed(2));
+  if (shFOffset) shFOffset.setAttribute('dy', shFDy);
+  if (shFBlur) shFBlur.setAttribute('stdDeviation', shFStdDev);
+}
+
+// Apply default shadows on page load
+updateShadows(DEFAULT_SHADOWS.darkness, DEFAULT_SHADOWS.distance);
+
+// Initialize with original values
+shadowDarknessSlider.value = DEFAULT_SHADOWS.darkness;
+shadowDarknessValue.textContent = DEFAULT_SHADOWS.darkness + '%';
+shadowDistanceSlider.value = DEFAULT_SHADOWS.distance;
+shadowDistanceValue.textContent = DEFAULT_SHADOWS.distance + '%';
+
+shadowDarknessSlider.addEventListener('input', () => {
+  const darkness = Number(shadowDarknessSlider.value);
+  shadowDarknessValue.textContent = darkness + '%';
+  updateShadows(darkness, Number(shadowDistanceSlider.value));
+});
+
+shadowDistanceSlider.addEventListener('input', () => {
+  const distance = Number(shadowDistanceSlider.value);
+  shadowDistanceValue.textContent = distance + '%';
+  updateShadows(Number(shadowDarknessSlider.value), distance);
+});
+
+resetShadowsBtn.addEventListener('click', () => {
+  shadowDarknessSlider.value = DEFAULT_SHADOWS.darkness;
+  shadowDarknessValue.textContent = DEFAULT_SHADOWS.darkness + '%';
+  shadowDistanceSlider.value = DEFAULT_SHADOWS.distance;
+  shadowDistanceValue.textContent = DEFAULT_SHADOWS.distance + '%';
+  updateShadows(DEFAULT_SHADOWS.darkness, DEFAULT_SHADOWS.distance);
+});
+
+// ── Header text and logos ─────────────────────────────────────────────────────
+function saveHeaderPref(key, value) {
+  try { localStorage.setItem(key, value); } catch (_) {}
+}
+
+titleInput.addEventListener('input', () => {
+  headerTitle = titleInput.value;
+  saveHeaderPref(LOCAL_KEY_TITLE, headerTitle);
+  applyHeader();
+});
+
+subtitleInput.addEventListener('input', () => {
+  headerSubtitle = subtitleInput.value;
+  saveHeaderPref(LOCAL_KEY_SUBTITLE, headerSubtitle);
+  applyHeader();
+});
+
+logoList.addEventListener('change', e => {
+  const cb = e.target.closest('.logo-toggle');
+  if (!cb) return;
+  const i = Number(cb.dataset.index);
+  if (cb.checked) enabledLogos.add(i); else enabledLogos.delete(i);
+  saveHeaderPref(LOCAL_KEY_LOGOS, JSON.stringify([...enabledLogos].sort()));
+  applyHeader();
+});
+
+resetHeaderBtn.addEventListener('click', () => {
+  headerTitle = DEFAULT_TITLE;
+  headerSubtitle = DEFAULT_SUBTITLE;
+  enabledLogos = new Set(DEFAULT_LOGOS);
+  try {
+    localStorage.removeItem(LOCAL_KEY_TITLE);
+    localStorage.removeItem(LOCAL_KEY_SUBTITLE);
+    localStorage.removeItem(LOCAL_KEY_LOGOS);
+  } catch (_) {}
+  titleInput.value = headerTitle;
+  subtitleInput.value = headerSubtitle;
+  renderLogoPanel();
+  applyHeader();
+});
+
+// ── Recent kites panel ───────────────────────────────────────────────────────
+const recentBtn = document.getElementById('recentBtn');
+const recentPanel = document.getElementById('recentPanel');
+const recentList = document.getElementById('recentList');
+
+function relativeTime(ms) {
+  const sec = Math.floor((Date.now() - ms) / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  return `${Math.floor(min / 60)}h ago`;
+}
+
+function saveKitesToStorage() {
+  if (demo) return;
+  const serialisable = kites.map(({ img, t0, launchStart, ...rest }) => rest);
+  KiteStore.replaceAll(serialisable).catch(e => console.warn('Failed to save kites to IndexedDB', e));
+}
+
+async function removeKite(createdAt) {
+  const kite = kites.find(k => k.createdAt === createdAt);
+  if (!kite) return;
+
+  if (!demo && window.location.protocol !== 'file:') {
+    try {
+      const res = await fetch('/api/remove-kite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: kite.id }),
+      });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    } catch (err) {
+      alert('Could not remove the kite from the hub server: ' + err.message);
+      return;
+    }
+  }
+
+  kites = kites.filter(k => k.createdAt !== createdAt);
+  if (window.location.protocol === 'file:') saveKitesToStorage();
+  updateCount();
+  renderRecentPanel();
+}
+
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function renderRecentPanel() {
+  const sorted = [...kites].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const recent = sorted.slice(0, 10);
+  const countEl = document.getElementById('recentCount');
+  if (countEl) countEl.textContent = kites.length > 0 ? `${recent.length}/${kites.length} kites` : '';
+  if (recent.length === 0) {
+    recentList.innerHTML = '<div class="kite-empty">No kites yet</div>';
+    return;
+  }
+  recentList.innerHTML = recent.map(k => `
+    <div class="kite-row">
+      <img class="kite-thumb" src="${k.dataURL}" alt="">
+      <div>
+        <div class="kite-name">${escapeHTML(k.name || 'Unnamed kite')}</div>
+        <div class="kite-age">${relativeTime(k.createdAt || Date.now())}</div>
+      </div>
+      <button class="kite-remove" data-created-at="${k.createdAt}" title="Remove kite">×</button>
+    </div>
+  `).join('');
+}
+
+recentList.addEventListener('click', e => {
+  const btn = e.target.closest('.kite-remove');
+  if (!btn) return;
+  e.stopPropagation();
+  const createdAt = Number(btn.dataset.createdAt);
+  const kite = kites.find(k => k.createdAt === createdAt);
+  const name = kite?.name || 'Unnamed kite';
+  const safeName = escapeHTML(name);
+  showConfirm(
+    `Remove "<strong>${safeName}</strong>" from the sky?<span>This cannot be undone.</span>`,
+    'Remove',
+    () => removeKite(createdAt)
+  );
+});
+
+recentBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const opening = !recentPanel.classList.contains('show');
+  recentPanel.classList.toggle('show');
+  if (opening) renderRecentPanel();
+});
+
+recentPanel.addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => recentPanel.classList.remove('show'));
+
+const resetCacheBtn   = document.getElementById('resetCacheBtn');
+const clearAllBtn     = document.getElementById('clearAllBtn');
+const confirmOverlay  = document.getElementById('confirmOverlay');
+const confirmMsg      = document.getElementById('confirmMsg');
+const confirmYes      = document.getElementById('confirmYes');
+const confirmNo       = document.getElementById('confirmNo');
+
+// Show the right button depending on whether we're talking to the hub server
+if (window.location.protocol !== 'file:') {
+  resetCacheBtn.style.display = 'none';
+  clearAllBtn.style.display = '';
+  document.getElementById('hubStatus').style.display = 'flex';
+} // else: clearAllBtn stays hidden, resetCacheBtn stays visible, hubStatus stays hidden
+
+// Demo mode: nothing is persisted, so hide import/export and the reset/clear
+// buttons, and replace the hub status with a demo notice.
+if (demo) {
+  for (const id of ['resetCacheBtn', 'clearAllBtn', 'exportBtn', 'importBtn']) {
+    document.getElementById(id).style.display = 'none';
+  }
+  const hub = document.getElementById('hubStatus');
+  hub.style.display = 'flex';
+  hub.querySelector('.hub-text').textContent = 'Demo mode — sample kites, nothing is saved.';
+  document.getElementById('hubReconnectBtn').style.display = 'none';
+  document.getElementById('demoChip').style.display = '';
+}
+
+let pendingConfirm = null;
+
+function showConfirm(html, yesLabel, onYes) {
+  confirmMsg.innerHTML = html;
+  confirmYes.textContent = yesLabel;
+  pendingConfirm = onYes;
+  confirmOverlay.classList.add('show');
+}
+
+function hideConfirm() {
+  confirmOverlay.classList.remove('show');
+  pendingConfirm = null;
+}
+
+resetCacheBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  showConfirm(
+    'Clear all kites from the cache?<span>This cannot be undone.</span>',
+    'Clear',
+    () => {
+      kites = [];
+      saveKitesToStorage();
+      settingsPanel.classList.remove('show');
+      renderRecentPanel();
+    }
+  );
+});
+
+clearAllBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  showConfirm(
+    'Clear all kites for everyone?<span>This removes all kites on all screens and cannot be undone.</span>',
+    'Clear all',
+    async () => {
+      try {
+        if (!demo) await fetch('/api/clear', { method: 'POST' });
+        // The SSE 'clear' event will update the kites array on all screens;
+        // also clear locally in case the SSE event is slightly delayed.
+        kites = [];
+        updateCount();
+        settingsPanel.classList.remove('show');
+        renderRecentPanel();
+      } catch (err) {
+        alert('Could not reach the hub server: ' + err.message);
+      }
+    }
+  );
+});
+
+// ── Export ─────────────────────────────────────────────────────────────────────
+const exportBtn = document.getElementById('exportBtn');
+
+function exportKites() {
+  const serialisable = kites.map(({ img, t0, launchStart, ...rest }) => ({
+    ...rest,
+  }));
+  const blob = new Blob([JSON.stringify(serialisable, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sketch-kites-export-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+exportBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  exportKites();
+});
+
+// ── Import ─────────────────────────────────────────────────────────────────────
+const importBtn = document.getElementById('importBtn');
+const importInput = document.getElementById('importInput');
+
+importBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  importInput.click();
+});
+
+importInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    try {
+      const arr = JSON.parse(ev.target.result);
+      if (!Array.isArray(arr)) throw new Error('Not an array');
+      const toImport = arr.filter(d => d.dataURL && !kites.some(k => k.id === d.id));
+      if (toImport.length === 0) return;
+
+      if (window.location.protocol !== 'file:') {
+        // Network mode: persist each kite to the hub server so it survives a refresh
+        for (const d of toImport) {
+          await fetch('/api/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(d),
+          });
+          // The SSE event will add the kite to the display; add locally too in
+          // case the event arrives after this loop finishes.
+          if (!kites.some(k => k.id === d.id)) {
+            kites.push(makeKiteFromData(d));
+          }
+        }
+      } else {
+        // file:// mode: persist to IndexedDB via KiteStore
+        for (const d of toImport) kites.push(makeKiteFromData(d));
+        saveKitesToStorage();
+      }
+
+      enforceKiteCap();
+      renderRecentPanel();
+      updateCount();
+    } catch (err) {
+      alert('Failed to import kites: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  // reset so the same file can be re-imported
+  importInput.value = '';
+});
+
+confirmNo.addEventListener('click', hideConfirm);
+confirmOverlay.addEventListener('click', e => {
+  if (e.target === confirmOverlay) hideConfirm();
+});
+
+confirmYes.addEventListener('click', () => {
+  if (pendingConfirm) pendingConfirm();
+  hideConfirm();
+});
+
+function drawAutoTooltip(t) {
+  if (!autoTooltipKite) return;
+
+  if (Date.now() > autoTooltipUntil) {
+    autoTooltipKite = null;
+    tooltip.style.display = 'none';
+    return;
+  }
+
+  const pos = getKitePos(autoTooltipKite, t);
+
+  tooltip.textContent = autoTooltipKite.name || 'Unnamed kite';
+  tooltip.style.left = `${pos.x}px`;
+  tooltip.style.top = `${pos.y - 70}px`;
+  tooltip.style.transform = 'translateX(-50%)';
+  tooltip.style.display = 'block';
+}
+
+
+// ── Main loop ────────────────────────────────────────────────────────────────
+function loop() {
+  const t = performance.now() / 1000;
+
+  ctx.clearRect(0, 0, W, H);
+
+  for (const k of kites) drawKite(k, t);
+  for (const k of driftingKites) drawDriftingKite(k, t);
+  driftingKites = driftingKites.filter(k => (t - k.driftStart) < DRIFT_DURATION);
+
+  checkTooltip(t);
+  drawAutoTooltip(t);
+  requestAnimationFrame(loop);
+}
+
+// ── Demo mode ─────────────────────────────────────────────────────────────────
+const DEMO_KITE_IMAGES = ['images/test-kite-01.png', 'images/test-kite-02.png'];
+const DEMO_KITE_NAMES = [
+  'Aisyah', 'Danial', 'Mei Ling', 'Arjun', 'Siti', 'Hafiz', 'Wei Jie', 'Nurul',
+  'Kavya', 'Irfan', 'Sofia', 'Zack', 'Priya', 'Amir', 'Lily', 'Farah',
+];
+
+function loadDemoImages() {
+  return Promise.all(DEMO_KITE_IMAGES.map(src => new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(src);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  }))).then(list => list.filter(Boolean));
+}
+
+// Fallback if the test images can't be loaded: a plain coloured diamond kite
+function syntheticKiteImage(i) {
+  const palette = ['#e03c3c', '#f5a623', '#4da6e8', '#6cc24a', '#a56cd6'];
+  const c = document.createElement('canvas');
+  c.width = 200; c.height = 240;
+  const g = c.getContext('2d');
+  const pts = [[100, 8], [190, 100], [100, 232], [10, 100]];
+  const mid = [100, 100];
+  g.lineWidth = 4; g.strokeStyle = '#000'; g.lineJoin = 'round';
+  for (let q = 0; q < 4; q++) {
+    g.beginPath();
+    g.moveTo(...mid); g.lineTo(...pts[q]); g.lineTo(...pts[(q + 1) % 4]); g.closePath();
+    g.fillStyle = palette[(i + q) % palette.length];
+    g.fill(); g.stroke();
+  }
+  return c.toDataURL();
+}
+
+function makeDemoKite(src, name, createdAt, isNew) {
+  const cx = 0.2 + Math.random() * 0.6;
+  return makeKiteFromData({
+    // No id on purpose: enforceKiteCap only persists evictions for kites with one
+    dataURL: src,
+    name,
+    cx,
+    cy: randomBetween(0.05, 0.35),
+    maxCy: randomBetween(0.80, 0.95),
+    ampX: randomBetween(0.08, 0.18),
+    ampY: randomBetween(0.06, 0.14),
+    freqX: randomBetween(0.08, 0.18),
+    freqY: randomBetween(0.11, 0.22),
+    phaseX: Math.random() * Math.PI * 2,
+    phaseY: Math.random() * Math.PI * 2,
+    rockAmp: randomBetween(0.08, 0.22),
+    rockFreq: randomBetween(0.6, 1.4),
+    rockPhase: Math.random() * Math.PI * 2,
+    scale: randomBetween(90, 140),
+    anchorX: cx + randomBetween(-0.12, 0.12),
+    anchorY: randomBetween(0.80, 0.87),
+    createdAt,
+  }, isNew);
+}
+
+async function startDemo() {
+  const count = Math.min(Math.max(parseInt(demoParam, 10) || DEMO_DEFAULT_COUNT, 1), maxKites);
+  const images = await loadDemoImages();
+  let seq = 0;
+  const addKite = (createdAt, isNew) => {
+    const i = seq++;
+    const src = images.length ? images[i % images.length] : syntheticKiteImage(i);
+    kites.push(makeDemoKite(src, DEMO_KITE_NAMES[i % DEMO_KITE_NAMES.length], createdAt, isNew));
+  };
+
+  // Oldest first with unique, staggered createdAt (getDisplayScale keys on it);
+  // the newest few play the launch animation.
+  const now = Date.now();
+  for (let i = 0; i < count; i++) addKite(now - (count - i) * 45000, i >= count - 3);
+  enforceKiteCap();
+  updateCount();
+  renderRecentPanel();
+
+  setInterval(() => {
+    addKite(Date.now(), true);
+    enforceKiteCap();
+    updateCount();
+    renderRecentPanel();
+  }, DEMO_KITE_INTERVAL);
+}
+
+if (demo) startDemo();
+else loadKitesFromStorage();
+updateCount();
+loop();
+</script>
+</body>
+</html>
