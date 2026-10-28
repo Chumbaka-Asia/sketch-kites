@@ -58,6 +58,8 @@ There are two ways to run it:
 
 ## Getting Started
 
+> **Download:** Grab the ready-to-run app ZIP and printable kite template PDF from the [**Latest Release**](../../releases/latest) page.
+
 No installation or build step is needed. Open the files directly in any modern browser. For a multi-device setup, see [Exhibition Mode](#exhibition-mode).
 
 ### Quick start (single computer)
